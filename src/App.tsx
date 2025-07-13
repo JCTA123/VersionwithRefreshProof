@@ -155,6 +155,7 @@ export default function App() {
         name,
         participants: ['Alice', 'Bob'],
         judges: ['Judge 1'],
+        judgeWeights: { 'Judge 1': 100 },
         criteria: [{ name: 'Creativity', max: 10 }],
         scores: {},
         visibleToJudges: false,
@@ -428,9 +429,21 @@ export default function App() {
   };
 
   const calcAvg = (ev, participant) => {
-    return (calcTotalAllJudges(ev, participant) / ev.judges.length).toFixed(2);
+    const totalWeight = Object.values(ev.judgeWeights || {}).reduce(
+      (sum, w) => sum + w,
+      0
+    );
+    if (totalWeight === 0) return '0.00';
+  
+    const weightedSum = ev.judges.reduce((sum, judge) => {
+      const judgeScore = calcTotalForJudge(ev, judge, participant);
+      const weight = ev.judgeWeights?.[judge] || 0;
+      return sum + (judgeScore * weight) / 100;
+    }, 0);
+  
+    return weightedSum.toFixed(2);
   };
-
+  
   const renderSummary = (ev) => {
     const ranked = ev.participants
       .map((p) => ({
@@ -910,15 +923,28 @@ export default function App() {
                     </button>
 
                     <button
-                      className="btn-yellow"
-                      onClick={() =>
-                        promptEditList('Edit Judges', ev.judges, (newList) =>
-                          updateEvent(idx, { ...ev, judges: newList })
-                        )
-                      }
-                    >
-                      🧑‍⚖️ Judges
-                    </button>
+  className="btn-yellow"
+  onClick={() =>
+    promptEditList('Edit Judges', ev.judges, (newList) => {
+      const updatedWeights = {};
+      newList.forEach((j) => {
+        const oldWeight = ev.judgeWeights?.[j] || '';
+        const w = prompt(`Set weight for ${j} (in %):`, oldWeight.toString());
+        if (!isNaN(parseFloat(w))) {
+          updatedWeights[j] = parseFloat(w);
+        }
+      });
+
+      updateEvent(idx, {
+        ...ev,
+        judges: newList,
+        judgeWeights: updatedWeights,
+      });
+    })
+  }
+>
+  🧑‍⚖️ Judges
+</button>
 
                     <button
                       className="btn-blue"
@@ -963,7 +989,9 @@ export default function App() {
                       <tr>
                         <th>Participant</th>
                         {ev.judges.map((j, jdx) => (
-                          <th key={jdx}>{j}</th>
+                          <th key={jdx}>
+                          {j} ({ev.judgeWeights?.[j] || 0}%)
+                        </th>                        
                         ))}
                         <th>Total</th>
                         <th>Average</th>
