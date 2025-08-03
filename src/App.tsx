@@ -12,9 +12,9 @@ declare module 'jspdf' {
 import './App.css';
 
 import { initializeApp } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
 import { getDatabase, ref, onValue, set } from 'firebase/database';
 import type { User } from 'firebase/auth';
-
 import {
   getAuth,
   signInWithEmailAndPassword,
@@ -22,6 +22,8 @@ import {
   onAuthStateChanged,
   signOut,
 } from 'firebase/auth';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
+
 
 const firebaseConfig = {
   apiKey: 'AIzaSyBtzd0B3fIDJ8XRM1ESKx3klnGZRtVy0Dg',
@@ -35,6 +37,7 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+const firestore = getFirestore(app); // ✅ this is what we need
 const db = getDatabase(app);
 
 const DEFAULT_PASSWORD = 'JCTA123';
@@ -85,6 +88,26 @@ export default function App() {
       };
     };
   }>({});
+    const [twoPhaseVisibility, setTwoPhaseVisibility] = useState<{
+    [baseName: string]: boolean;
+  }>(() => {
+    const saved = localStorage.getItem('twoPhaseVisibility');
+    return saved ? JSON.parse(saved) : {};
+  });
+  
+  useEffect(() => {
+    localStorage.setItem('twoPhaseVisibility', JSON.stringify(twoPhaseVisibility));
+  }, [twoPhaseVisibility]);
+  
+  useEffect(() => {
+    const unsub = onSnapshot(doc(firestore, 'appConfig', 'meta'), (docSnap) => {
+      const data = docSnap.data();
+      if (data?.twoPhaseVisibility) {
+        setTwoPhaseVisibility(data.twoPhaseVisibility);
+      }
+    });
+    return () => unsub();
+  }, []);
   
   type Event = {
     name: string;
@@ -1035,81 +1058,124 @@ if (viewMode === 'judge' && !currentJudge) {
               </ul>
             </div>
           </div>
-          <h2>📊 Two-Phase Event Summaries</h2>
-          {getTwoPhaseGroups().length === 0 ? (
-          <p>No combined phase summaries yet.</p>
+          <h2>📊 Two-Phase Event Summaries</h2>{getTwoPhaseGroups().length === 0 ? (
+  <p>No combined phase summaries yet.</p>
 ) : (
-  getTwoPhaseGroups().map((group, idx) => {
-    const { baseName, phase1, phase2 } = group;
-    if (!phase1 || !phase2) return null;
+  getTwoPhaseGroups().length === 0 ? (
+    <p>No combined phase summaries yet.</p>
+  ) : (
+    <>
+      {console.log('📊 Two-Phase Groups:', getTwoPhaseGroups())}
+      {getTwoPhaseGroups().map((group, idx) => {
+        const { baseName, phase1, phase2 } = group;
+        if (!phase1 || !phase2) return null;
   
-    const weights = phase1.phaseWeights || { phase1: 60, phase2: 40 };
+        const weights = phase1.phaseWeights || { phase1: 60, phase2: 40 };
   
-    const participantList = Array.from(
-      new Set([...phase1.participants, ...phase2.participants])
-    );
+        const participantList = Array.from(
+          new Set([...phase1.participants, ...phase2.participants])
+        );
   
-    const scores: { [name: string]: number } = {};
-    participantList.forEach((p) => {
-      const avg1 = Number(calcAvg(phase1, p) || 0);
-      const avg2 = Number(calcAvg(phase2, p) || 0);
-      scores[p] = (avg1 * weights.phase1 + avg2 * weights.phase2) / 100;
-    });
+        const scores: { [name: string]: number } = {};
+        participantList.forEach((p) => {
+          const avg1 = Number(calcAvg(phase1, p) || 0);
+          const avg2 = Number(calcAvg(phase2, p) || 0);
+          scores[p] = (avg1 * weights.phase1 + avg2 * weights.phase2) / 100;
+        });
   
-    return (
-      <div key={idx} className="card">
+        return (<div key={idx} className="card">
         <h3>{baseName} - Final Combined Ranking</h3>
-        <p>🎯 Weighting: Phase 1 = {weights.phase1}% | Phase 2 = {weights.phase2}%</p>
-  
-        <button
-          className="btn-yellow"
-          onClick={() => {
-            const p1 = prompt('Enter Phase 1 weight (%)', weights.phase1.toString());
-            const p2 = prompt('Enter Phase 2 weight (%)', weights.phase2.toString());
-  
-            if (p1 !== null && p2 !== null) {
-              const num1 = parseFloat(p1);
-              const num2 = parseFloat(p2);
-  
-              if (num1 + num2 !== 100) {
-                alert('Weights must sum to 100%');
-                return;
+        <p>
+          🎯 Weighting: Phase 1 = {weights.phase1}% | Phase 2 = {weights.phase2}%
+        </p>
+      
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+          <button
+            className="btn-yellow"
+            onClick={() => {
+              const p1 = prompt('Enter Phase 1 weight (%)', weights.phase1.toString());
+              const p2 = prompt('Enter Phase 2 weight (%)', weights.phase2.toString());
+      
+              if (p1 !== null && p2 !== null) {
+                const num1 = parseFloat(p1);
+                const num2 = parseFloat(p2);
+      
+                if (num1 + num2 !== 100) {
+                  alert('Weights must sum to 100%');
+                  return;
+                }
+      
+                const updated1 = { ...phase1, phaseWeights: { phase1: num1, phase2: num2 } };
+                const updated2 = { ...phase2, phaseWeights: { phase1: num1, phase2: num2 } };
+      
+                updateEvent(events.indexOf(phase1), updated1);
+                updateEvent(events.indexOf(phase2), updated2);
               }
-  
-              const updated1 = { ...phase1, phaseWeights: { phase1: num1, phase2: num2 } };
-              const updated2 = { ...phase2, phaseWeights: { phase1: num1, phase2: num2 } };
-  
-              updateEvent(events.indexOf(phase1), updated1);
-              updateEvent(events.indexOf(phase2), updated2);
-            }
-          }}
-        >
-          ⚙️ Edit Weights
-        </button>
-  
-        <table>
-          <thead>
-            <tr>
-              <th>Participant</th>
-              <th>Final Score</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(scores)
-              .sort((a, b) => b[1] - a[1])
-              .map(([name, score]) => (
-                <tr key={name}>
-                  <td>{name}</td>
-                  <td>{score.toFixed(2)}</td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  })
-)}  
-          {events.length === 0 ? (
+            }}
+          >
+            ⚙️ Edit Weights
+          </button>
+          <button
+  className="btn-blue"
+  onClick={async () => {
+    const newState = {
+      ...twoPhaseVisibility,
+      [baseName]: !twoPhaseVisibility[baseName],
+    };
+
+    setTwoPhaseVisibility(newState); // local UI update
+
+    await updateDoc(doc(firestore, 'appConfig', 'meta'), {
+      twoPhaseVisibility: newState, // sync to Firebase
+    });
+  }}
+>
+  {twoPhaseVisibility[baseName]
+    ? '🙈 Hide from Judges'
+    : '👁️ Show to Judges'}
+</button>
+        </div>
+        
+<table>
+  <thead>
+    <tr>
+      <th>Participant</th>
+      <th>Phase 1 Score</th>
+      <th>Phase 2 Score</th>
+      <th>Final Weighted Score</th>
+    </tr>
+  </thead>
+  <tbody>
+    {participantList
+      .map((p) => {
+        const avg1 = Number(calcAvg(phase1, p) || 0);
+        const avg2 = Number(calcAvg(phase2, p) || 0);
+        const final = (avg1 * weights.phase1 + avg2 * weights.phase2) / 100;
+
+        return {
+          name: p,
+          phase1Score: avg1,
+          phase2Score: avg2,
+          finalScore: final
+        };
+      })
+      .sort((a, b) => b.finalScore - a.finalScore)
+      .map((row, idx) => (
+        <tr key={idx}>
+          <td>{row.name}</td>
+          <td>{row.phase1Score.toFixed(2)}</td>
+          <td>{row.phase2Score.toFixed(2)}</td>
+          <td>{row.finalScore.toFixed(2)}</td>
+        </tr>
+      ))}
+  </tbody>
+</table>
+          </div>
+        );
+      })}
+    </>
+  ))}
+            {events.length === 0 ? (
             <p className="text-center">
               📭 No events yet. Click "➕ Add Event" to begin.
             </p>
@@ -1288,6 +1354,63 @@ if (viewMode === 'judge' && !currentJudge) {
             </p>
           ) : (
             visibleJudgeEvents.map((ev, idx) => {
+              <h2>📊 Combined Two-Phase Results (if any)</h2>
+{getTwoPhaseGroups()
+  .filter((group) => twoPhaseVisibility[group.baseName])
+  .map((group, idx) => {
+    const { baseName, phase1, phase2 } = group;
+    if (!phase1 || !phase2) return null;
+
+    const weights = phase1.phaseWeights || { phase1: 60, phase2: 40 };
+
+    const participantList = Array.from(
+      new Set([...phase1.participants, ...phase2.participants])
+    );
+
+    const scores = participantList.map((p) => {
+      const avg1 = Number(calcAvg(phase1, p) || 0);
+      const avg2 = Number(calcAvg(phase2, p) || 0);
+      return {
+        name: p,
+        phase1Score: avg1,
+        phase2Score: avg2,
+        finalScore: (avg1 * weights.phase1 + avg2 * weights.phase2) / 100,
+      };
+    });
+
+    return (
+      <div key={idx} className="card">
+        <h3>{baseName} - Final Combined Ranking</h3>
+        <p>
+          🎯 Weighting: Phase 1 = {weights.phase1}% | Phase 2 = {weights.phase2}%
+        </p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Participant</th>
+              <th>Phase 1 Score</th>
+              <th>Phase 2 Score</th>
+              <th>Final Weighted Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scores
+              .sort((a, b) => b.finalScore - a.finalScore)
+              .map((row, i) => (
+                <tr key={i}>
+                  <td>{row.name}</td>
+                  <td>{row.phase1Score.toFixed(2)}</td>
+                  <td>{row.phase2Score.toFixed(2)}</td>
+                  <td>{row.finalScore.toFixed(2)}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  })}
+
               const safeCriteria = ev.criteria.map((c: string | { name: string; max: number }) => {
                 if (typeof c === 'string') {
                   const match = c.match(/^(.*?)(?:\s*\((\d+)\))?$/);
