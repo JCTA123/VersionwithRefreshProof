@@ -1,11 +1,19 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import 'jspdf-autotable';
+declare module 'jspdf' {
+  interface jsPDF {
+    autoTable: (options: any) => jsPDF;
+    lastAutoTable?: {
+      finalY: number;
+    };
+  }
+}
 import './App.css';
 
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, set } from 'firebase/database';
+import type { User } from 'firebase/auth';
 
 import {
   getAuth,
@@ -34,15 +42,16 @@ const DEFAULT_PASSWORD = 'JCTA123';
 const auth = getAuth(app);
 
 export default function App() {
-  const [events, setEvents] = useState([]);
+  const [events, setEvents] = useState<Event[]>([]);
   const [organizerView, setOrganizerView] = useState(false);
   const [currentJudge, setCurrentJudge] = useState('');
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [viewMode, setViewMode] = useState<'intro' | 'judge' | 'organizer'>(
     'intro'
   );
+  const [user, setUser] = useState<User | null>(null);
   const updateFirebase = (key: string, data: any) => {
     if (!user) {
       console.warn('❌ No user. Skipping updateFirebase.');
@@ -62,17 +71,40 @@ export default function App() {
   const [pendingJudgeName, setPendingJudgeName] = useState('');
   const [judgeCodes, setJudgeCodes] = useState<string[]>([]);
   const [codeInput, setCodeInput] = useState('');
-  const [tempScores, setTempScores] = useState({});
 
-  const chatRef = useRef(null);
-
-  const [user, setUser] = useState(null); // ✅ Firebase Auth user
   const [authChecked, setAuthChecked] = useState(false);
   const [requireFreshLogin, setRequireFreshLogin] = useState(() => {
     const saved = localStorage.getItem('requireFreshLogin');
     return saved === 'false' ? false : true;
   });
-
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [tempScores, setTempScores] = useState<{
+    [eventIdx: string]: {
+      [participant: string]: {
+        [criterion: string]: string | number;
+      };
+    };
+  }>({});
+  
+  type Event = {
+    name: string;
+    participants: string[];
+    judges: string[];
+    judgeWeights: { [key: string]: number };
+    criteria: { name: string; max: number }[];
+    scores: { [judge: string]: { [participant: string]: { [criterion: string]: number } } };
+    visibleToJudges: boolean;
+    resultsVisibleToJudges: boolean;
+    isTwoPhased?: boolean;
+    phaseCategory?: string;
+    phaseWeights?: { phase1: number; phase2: number };
+    submittedJudges?: string[];
+  };
+  type ChatMessage = {
+    sender: string;
+    text: string;
+  };
+  
   useEffect(() => {
     console.log('✅ viewMode:', viewMode);
     console.log('✅ organizerView:', organizerView);
@@ -99,7 +131,7 @@ export default function App() {
     onValue(codesRef, (snapshot) => {
       const val = snapshot.val();
       const codeList = val ? Object.values(val) : [];
-      setJudgeCodes(codeList);
+      setJudgeCodes(codeList as string[]);
     });
 
     onValue(passRef, (snapshot) => {
@@ -107,46 +139,38 @@ export default function App() {
     });
   }, [user]); // 👈 Make sure to re-run when user changes
 
-  useEffect(() => {
-    if (!authChecked || !user) return;
+// 🔁 1. Auth watcher
+useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    setUser(firebaseUser);
+    setAuthChecked(true);
 
-    const savedView = localStorage.getItem('viewMode');
-    const savedJudge = localStorage.getItem('currentJudge');
-    const savedOrganizer = localStorage.getItem('organizerView');
+    if (!firebaseUser) {
+      localStorage.clear();
+      setOrganizerView(false);
+      setCurrentJudge('');
+      setViewMode('intro');
+    }
+  });
 
-    if (savedView) setViewMode(savedView as 'intro' | 'judge' | 'organizer');
-    if (savedJudge) setCurrentJudge(savedJudge);
-    if (savedOrganizer === 'true') setOrganizerView(true);
-  }, [authChecked, user]);
+  return () => unsubscribe();
+}, []);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-      setAuthChecked(true);
+// 🧠 2. Restore view after auth is confirmed
+useEffect(() => {
+  if (!authChecked || !user) return;
 
-      if (!firebaseUser) {
-        localStorage.clear();
-        setOrganizerView(false);
-        setCurrentJudge('');
-        setViewMode('intro');
-      } else {
-        setTimeout(() => {
-          const savedView = localStorage.getItem('viewMode');
-          const savedJudge = localStorage.getItem('currentJudge');
-          const savedOrganizer = localStorage.getItem('organizerView');
+  const savedView = localStorage.getItem('viewMode');
+  const savedJudge = localStorage.getItem('currentJudge');
+  const savedOrganizer = localStorage.getItem('organizerView');
 
-          if (savedView)
-            setViewMode(savedView as 'intro' | 'judge' | 'organizer');
-          if (savedJudge) setCurrentJudge(savedJudge);
-          if (savedOrganizer === 'true') setOrganizerView(true);
-        }, 100);
-      }
-    });
+  if (savedView) setViewMode(savedView as 'intro' | 'judge' | 'organizer');
+  if (savedJudge) setCurrentJudge(savedJudge);
+  if (savedOrganizer === 'true') setOrganizerView(true);
+}, [authChecked, user]);
+  
 
-    return () => unsubscribe(); // ✅ CORRECTLY outside
-  }, []);
-
-  const createNewEvent = () => {
+const createNewEvent = () => {
     const name = prompt('Enter event name:');
     if (!name) return;
     const newEvents = [
@@ -166,7 +190,7 @@ export default function App() {
     setEvents(newEvents);
   };
 
-  const deleteEvent = (idx) => {
+  const deleteEvent = (idx: number) => {
     if (window.confirm('Are you sure you want to delete this event?')) {
       const copy = [...events];
       copy.splice(idx, 1);
@@ -174,13 +198,14 @@ export default function App() {
     }
   };
 
-  const updateEvent = (idx, newEv) => {
+  const updateEvent = (idx: number, newEv: Event) => {
     const copy = [...events];
     copy[idx] = newEv;
     updateFirebase('events', copy);
+    setEvents(copy); // You likely need this line too to update the UI
   };
-
-  const toggleVisibility = (idx) => {
+  
+  const toggleVisibility = (idx: number) => {
     const ev = events[idx];
     const updated = { ...ev, visibleToJudges: !ev.visibleToJudges };
     const updatedEvents = [...events];
@@ -189,7 +214,7 @@ export default function App() {
     setEvents(updatedEvents); // ensure UI reflects change immediately
   };
 
-  const toggleResultsVisibility = (idx) => {
+  const toggleResultsVisibility = (idx: number) => {
     const ev = events[idx];
     const updated = {
       ...ev,
@@ -200,52 +225,72 @@ export default function App() {
     updateFirebase('events', updatedEvents);
     setEvents(updatedEvents);
   };
-
-  const handleInputScore = (idx, judge, participant, crit, val) => {
+  const handleInputScore = (
+    idx: number,
+    judge: string,
+    participant: string,
+    crit: string,
+    val: string | number
+  ): void => {
     const ev = events[idx];
-    const scoreVal = val === '' ? '' : Number(val);
+  
+    // Convert and sanitize input
+    const parsedVal = Number(val);
+    if (isNaN(parsedVal)) return; // Skip if not a valid number
+  
     const newScores = {
       ...ev.scores,
       [judge]: {
         ...(ev.scores[judge] || {}),
         [participant]: {
           ...(ev.scores[judge]?.[participant] || {}),
-          [crit]: scoreVal,
+          [crit]: parsedVal, // ✅ Always a number now
         },
       },
     };
+  
     updateEvent(idx, { ...ev, scores: newScores });
   };
-
-  const handleSubmitScores = (idx) => {
+    
+  const handleSubmitScores = (idx: number) => {
     const ev = events[idx];
     const updatedSubmitted = [...(ev.submittedJudges || []), currentJudge];
-
-    // 🔁 Push all tempScores to Firebase
-    const scoresToPush = { ...ev.scores };
-
-    const temp = tempScores?.[idx] || {};
+  
+    const scoresToPush: {
+      [judge: string]: {
+        [participant: string]: {
+          [criterion: string]: number;
+        };
+      };
+    } = { ...ev.scores };
+  
+    const temp = tempScores?.[idx.toString()] || {}; // 🔧 Cast index to string if needed
+  
     Object.keys(temp).forEach((participant) => {
       const participantScores = temp[participant];
       Object.keys(participantScores).forEach((crit) => {
+        const raw = participantScores[crit];
+        const parsed = Number(raw);
+  
         if (!scoresToPush[currentJudge]) scoresToPush[currentJudge] = {};
         if (!scoresToPush[currentJudge][participant])
           scoresToPush[currentJudge][participant] = {};
-        scoresToPush[currentJudge][participant][crit] = Number(
-          participantScores[crit]
-        );
+  
+        scoresToPush[currentJudge][participant][crit] = isNaN(parsed)
+          ? 0
+          : parsed; // ✅ Ensure value is a number
       });
     });
-
-    updateEvent(idx, {
+  
+    const updatedEvent: Event = {
       ...ev,
       scores: scoresToPush,
       submittedJudges: updatedSubmitted,
-    });
-
-    setTempScores({});
+    };
+  
+    updateEvent(idx, updatedEvent);
   };
-
+  
   const handleSendMessage = () => {
     if (newMessage.trim()) {
       const updatedMessages = [
@@ -364,15 +409,6 @@ export default function App() {
       setRequireFreshLogin(true); // 👈 Add this
     });
   };
-  const handleLogout = () => {
-    localStorage.clear();
-    setOrganizerView(false);
-    setCurrentJudge('');
-    setViewMode('intro');
-    setEvents([]);
-    setJudgeCodes([]);
-    setChatMessages([]);
-  };
 
   const refreshAllData = () => {
     if (!user) return;
@@ -399,12 +435,12 @@ export default function App() {
       ref(db, base + 'judgeCodes'),
       (snapshot) => {
         const val = snapshot.val();
-        const codeList = val ? Object.values(val) : [];
+        const codeList = val ? Object.values(val as { [key: string]: string }) : [];
         setJudgeCodes(codeList);
       },
       { onlyOnce: true }
     );
-
+    
     onValue(
       ref(db, base + 'organizerPassword'),
       (snapshot) => {
@@ -416,26 +452,29 @@ export default function App() {
     alert('✅ Data refreshed from Firebase.');
   };
 
-  const calcTotalForJudge = (ev, judge, participant) => {
+  const calcTotalForJudge = (
+    ev: Event,
+    judge: string,
+    participant: string
+  ): number => {
     const scores = ev.scores?.[judge]?.[participant] || {};
-    return Object.values(scores).reduce((a, b) => a + Number(b || 0), 0);
+    return Object.values(scores).reduce((a: number, b: number) => a + Number(b || 0), 0);
   };
 
-  const calcTotalAllJudges = (ev, participant) => {
-    return ev.judges.reduce(
-      (sum, judge) => sum + calcTotalForJudge(ev, judge, participant),
-      0
-    );
+  const calcTotalAllJudges = (ev: Event, participant: string): number => {
+    return ev.judges.reduce((sum: number, judge: string) => {
+      return sum + calcTotalForJudge(ev, judge, participant);
+    }, 0);
   };
-
-  const calcAvg = (ev, participant) => {
+  const calcAvg = (ev: Event, participant: string): string => {
     const totalWeight = Object.values(ev.judgeWeights || {}).reduce(
-      (sum, w) => sum + w,
+      (sum: number, w: number) => sum + w,
       0
     );
+  
     if (totalWeight === 0) return '0.00';
   
-    const weightedSum = ev.judges.reduce((sum, judge) => {
+    const weightedSum = ev.judges.reduce((sum: number, judge: string) => {
       const judgeScore = calcTotalForJudge(ev, judge, participant);
       const weight = ev.judgeWeights?.[judge] || 0;
       return sum + (judgeScore * weight) / 100;
@@ -443,16 +482,54 @@ export default function App() {
   
     return weightedSum.toFixed(2);
   };
+    
+  type RankedParticipant = {
+    name: string;
+    avg: number;
+  };
+  const getTwoPhaseGroups = () => {
+    const groups: {
+      baseName: string;
+      phase1?: typeof events[0];
+      phase2?: typeof events[0];
+    }[] = [];
   
-  const renderSummary = (ev) => {
-    const ranked = ev.participants
-      .map((p) => ({
+    const eventMap: { [baseName: string]: { phase1?: any; phase2?: any } } = {};
+  
+    events.forEach((ev) => {
+      if (!ev.phaseCategory) return;
+  
+      const baseName = ev.name.replace(/\s*\(Phase [12]\)\s*/i, '').trim();
+  
+      if (!eventMap[baseName]) {
+        eventMap[baseName] = {};
+      }
+  
+      if (ev.phaseCategory === 'Phase 1') {
+        eventMap[baseName].phase1 = ev;
+      } else if (ev.phaseCategory === 'Phase 2') {
+        eventMap[baseName].phase2 = ev;
+      }
+    });
+  
+    for (const baseName in eventMap) {
+      const group = eventMap[baseName];
+      if (group.phase1 && group.phase2) {
+        groups.push({ baseName, ...group });
+      }
+    }
+  
+    return groups;
+  };
+  
+  const renderSummary = (ev: Event) => {
+    const ranked: RankedParticipant[] = ev.participants
+      .map((p: string) => ({
         name: p,
         avg: Number(calcAvg(ev, p)),
       }))
-      .sort((a, b) => b.avg - a.avg);
-
-    const getEmoji = (idx) => {
+      .sort((a: RankedParticipant, b: RankedParticipant) => b.avg - a.avg);
+    const getEmoji = (idx: number) => {
       if (idx === 0) return '🥇';
       if (idx === 1) return '🥈';
       if (idx === 2) return '🥉';
@@ -471,16 +548,16 @@ export default function App() {
             </tr>
           </thead>
           <tbody>
-            {ranked.map((r, idx) => (
-              <tr key={idx} className={`rank-${idx + 1}`}>
-                <td>
-                  <span className="rank-emoji">{getEmoji(idx)}</span>
-                  {idx + 1}
-                </td>
-                <td>{r.name}</td>
-                <td>{r.avg.toFixed(2)}</td>
-              </tr>
-            ))}
+          {ranked.map((r: { name: string; avg: number }, idx: number) => (
+  <tr key={idx} className={`rank-${idx + 1}`}>
+    <td>
+      <span className="rank-emoji">{getEmoji(idx)}</span>
+      {idx + 1}
+    </td>
+    <td>{r.name}</td>
+    <td>{r.avg.toFixed(2)}</td>
+  </tr>
+             ))}
           </tbody>
         </table>
       </div>
@@ -499,7 +576,7 @@ export default function App() {
 
     let currentY = 30;
 
-    events.forEach((ev, index) => {
+    events.forEach((ev) => {
       const ranked = ev.participants
         .map((p) => ({
           name: p,
@@ -507,7 +584,7 @@ export default function App() {
         }))
         .sort((a, b) => b.avg - a.avg);
 
-      autoTable(doc, {
+        doc.autoTable({
         startY: currentY,
         theme: 'grid',
         head: [[`🎯 ${ev.name}`, 'Average']],
@@ -539,7 +616,30 @@ export default function App() {
 
     doc.save('overall_summary.pdf');
   };
-
+  const exportFinalSummaryPDF = (
+    eventName: string,
+    scores: { [participant: string]: number },
+    weights: { phase1: number; phase2: number }
+  ) => {
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text(`${eventName} – Final Combined Results`, 14, 20);
+    doc.setFontSize(12);
+    doc.text(`Weighting: Phase 1 = ${weights.phase1}% | Phase 2 = ${weights.phase2}%`, 14, 30);
+  
+    const data = Object.entries(scores)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, score], i) => [i + 1, name, score.toFixed(2)]);
+  
+    (doc as any).autoTable({
+      head: [['Rank', 'Participant', 'Final Score']],
+      body: data,
+      startY: 40,
+    });
+  
+    doc.save(`${eventName}_Final_Summary.pdf`);
+  };
+  
   const exportPerJudgePDF = () => {
     const doc = new jsPDF();
     const margin = 14;
@@ -553,7 +653,7 @@ export default function App() {
 
     events.forEach((ev) => {
       ev.judges.forEach((j) => {
-        autoTable(doc, {
+        doc.autoTable({
           startY: currentY,
           theme: 'grid',
           head: [[`🎯 ${ev.name}`, `Judge: ${j}`]],
@@ -589,7 +689,44 @@ export default function App() {
 
     doc.save('per_judge_results.pdf');
   };
-
+  const exportCombinedPDF = (
+    baseName: string,
+    ranked: [string, number][],
+    weights: { phase1: number; phase2: number }
+  ) => {
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text(`${baseName} - Final Combined Summary`, 14, 20);
+    doc.setFontSize(12);
+    doc.text(`Phase 1: ${weights.phase1}%`, 14, 30);
+    doc.text(`Phase 2: ${weights.phase2}%`, 14, 38);
+  
+    const rows = ranked.map(([name, score], idx) => [
+      idx + 1,
+      name,
+      score.toFixed(2),
+    ]);
+  
+    (doc as any).autoTable({
+      startY: 45,
+      head: [['Rank', 'Participant', 'Final Score']],
+      body: rows,
+    });
+  
+    // Optional watermark
+    doc.setFontSize(8);
+    doc.setTextColor(180);
+    doc.text(
+      'JOHN CARL TABANAO ALCORIN 265311',
+      14,
+      doc.internal.pageSize.height - 10
+    );
+  
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
+    window.open(url);
+  };
+  
   const exportSpecificEventPDF = () => {
     const evName = prompt('Enter exact event name:');
     const ev = events.find((e) => e.name === evName);
@@ -607,7 +744,7 @@ export default function App() {
     doc.text(`📋 ${ev.name} – Complete Scoring Summary`, 14, currentY);
     currentY += 10;
 
-    autoTable(doc, {
+    doc.autoTable({
       startY: currentY,
       theme: 'grid',
       head: [
@@ -645,7 +782,7 @@ export default function App() {
       }))
       .sort((a, b) => b.avg - a.avg);
 
-    autoTable(doc, {
+      doc.autoTable({
       startY: currentY,
       head: [['🏅 Final Rankings (Averaged)']],
       body: ranked.map((r, idx) => [
@@ -674,31 +811,45 @@ export default function App() {
   const loginWithEmail = async () => {
     const email = prompt('Enter email:');
     const password = prompt('Enter password:');
+  
+    if (!email || !password) {
+      alert('❌ Email and password are required.');
+      return;
+    }
+  
     try {
       await signInWithEmailAndPassword(auth, email, password);
       alert('✅ Logged in successfully.');
       localStorage.setItem('requireFreshLogin', 'false');
-      setRequireFreshLogin(false); // (if you're using the previous fix)
-      setViewMode('intro'); // ✅ GO TO judge/organizer menu
-    } catch (err) {
-      alert('❌ Login failed: ' + err.message);
+      setRequireFreshLogin(false);
+      setViewMode('intro');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      alert('❌ Login failed: ' + message);
     }
   };
-
+  
   const registerWithEmail = async () => {
     const email = prompt('Enter new email:');
     const password = prompt('Enter new password (min 6 chars):');
+  
+    if (!email || !password) {
+      alert('❌ Email and password are required.');
+      return;
+    }
+  
     try {
       await createUserWithEmailAndPassword(auth, email, password);
       alert("✅ Registered successfully. You're now logged in.");
       localStorage.setItem('requireFreshLogin', 'false');
-      setRequireFreshLogin(false); // (if applicable)
-      setViewMode('intro'); // ✅ GO TO judge/organizer menu
-    } catch (err) {
-      alert('❌ Registration failed: ' + err.message);
+      setRequireFreshLogin(false);
+      setViewMode('intro');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      alert('❌ Registration failed: ' + message);
     }
   };
-
+  
   if (!authChecked) {
     return (
       <div className="intro-screen">
@@ -728,75 +879,82 @@ export default function App() {
     );
   }
 
-  if (viewMode === 'intro') {
-    return (
-      <div className="intro-screen">
-        <h1>🎯 Digital Scoresheet App</h1>
-        <p className="text-center credits">made by JCTA</p>
-        <div className="flex-center">
-          <button className="btn-blue" onClick={() => setViewMode('judge')}>
-            Login as Judge
-          </button>
-          <button
-            className="btn-green"
-            onClick={() => {
-              setOrganizerView(false); // ✅ Force password screen to appear
-              setViewMode('organizer');
-            }}
-          >
-            Login as Organizer
-          </button>
-        </div>
-      </div>
-    );
-  }
+// 👇 Organizer Password Prompt
+if (viewMode === 'organizer' && !organizerView) {
+  return (
+    <div className="intro-screen">
+      <h2>🔒 Enter Organizer Password</h2>
+      <input
+        type="password"
+        value={orgPasswordInput}
+        onChange={(e) => setOrgPasswordInput(e.target.value)}
+        placeholder="Enter password"
+      />
+      <br />
+      <button className="btn-blue" onClick={handleOrganizerLogin}>
+        Submit
+      </button>
+      <button className="btn-gray" onClick={() => setViewMode('intro')}>
+        🔙 Back
+      </button>
+    </div>
+  );
+}
 
-  if (viewMode === 'organizer' && !organizerView) {
-    return (
-      <div className="intro-screen">
-        <h2>🔒 Enter Organizer Password</h2>
-        <input
-          type="password"
-          value={orgPasswordInput}
-          onChange={(e) => setOrgPasswordInput(e.target.value)}
-          placeholder="Enter password"
-        />
-        <br />
-        <button className="btn-blue" onClick={handleOrganizerLogin}>
-          Submit
+// 👇 Initial Intro Screen
+if (viewMode === 'intro') {
+  return (
+    <div className="intro-screen">
+      <h1>🎯 Digital Scoresheet App</h1>
+      <p className="text-center credits">made by JCTA</p>
+      <div className="flex-center">
+        <button className="btn-blue" onClick={() => setViewMode('judge')}>
+          Login as Judge
         </button>
-        <button className="btn-gray" onClick={() => setViewMode('intro')}>
-          🔙 Back
+        <button
+          className="btn-green"
+          onClick={() => {
+            setOrganizerView(false); // ✅ Force password screen to appear
+            setViewMode('organizer');
+          }}
+        >
+          Login as Organizer
         </button>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  if (viewMode === 'judge' && !currentJudge) {
-    return (
-      <div className="intro-screen">
-        <h2>Judge Login</h2>
-        <input
-          placeholder="Enter code"
-          value={codeInput}
-          onChange={(e) => setCodeInput(e.target.value)}
-        />
-        <input
-          placeholder="Enter your name"
-          value={pendingJudgeName}
-          onChange={(e) => setPendingJudgeName(e.target.value)}
-        />
-        <br />
-        <button className="btn-green" onClick={handleJudgeLogin}>
-          Login
-        </button>
-        <button className="btn-gray" onClick={() => setViewMode('intro')}>
-          🔙 Back
-        </button>
-      </div>
-    );
-  }
-  const promptEditList = (title, list, callback) => {
+// 👇 Judge login screen
+if (viewMode === 'judge' && !currentJudge) {
+  return (
+    <div className="intro-screen">
+      <h2>Judge Login</h2>
+      <input
+        placeholder="Enter code"
+        value={codeInput}
+        onChange={(e) => setCodeInput(e.target.value)}
+      />
+      <input
+        placeholder="Enter your name"
+        value={pendingJudgeName}
+        onChange={(e) => setPendingJudgeName(e.target.value)}
+      />
+      <br />
+      <button className="btn-green" onClick={handleJudgeLogin}>
+        Login
+      </button>
+      <button className="btn-gray" onClick={() => setViewMode('intro')}>
+        🔙 Back
+      </button>
+    </div>
+  );
+}
+  const promptEditList = (
+    title: string,
+    list: string[],
+    callback: (newList: string[]) => void
+  ): void => {
     const input = prompt(`${title} (comma separated):`, list.join(', '));
     if (input != null) {
       const newList = input
@@ -877,16 +1035,86 @@ export default function App() {
               </ul>
             </div>
           </div>
-
+          <h2>📊 Two-Phase Event Summaries</h2>
+          {getTwoPhaseGroups().length === 0 ? (
+          <p>No combined phase summaries yet.</p>
+) : (
+  getTwoPhaseGroups().map((group, idx) => {
+    const { baseName, phase1, phase2 } = group;
+    if (!phase1 || !phase2) return null;
+  
+    const weights = phase1.phaseWeights || { phase1: 60, phase2: 40 };
+  
+    const participantList = Array.from(
+      new Set([...phase1.participants, ...phase2.participants])
+    );
+  
+    const scores: { [name: string]: number } = {};
+    participantList.forEach((p) => {
+      const avg1 = Number(calcAvg(phase1, p) || 0);
+      const avg2 = Number(calcAvg(phase2, p) || 0);
+      scores[p] = (avg1 * weights.phase1 + avg2 * weights.phase2) / 100;
+    });
+  
+    return (
+      <div key={idx} className="card">
+        <h3>{baseName} - Final Combined Ranking</h3>
+        <p>🎯 Weighting: Phase 1 = {weights.phase1}% | Phase 2 = {weights.phase2}%</p>
+  
+        <button
+          className="btn-yellow"
+          onClick={() => {
+            const p1 = prompt('Enter Phase 1 weight (%)', weights.phase1.toString());
+            const p2 = prompt('Enter Phase 2 weight (%)', weights.phase2.toString());
+  
+            if (p1 !== null && p2 !== null) {
+              const num1 = parseFloat(p1);
+              const num2 = parseFloat(p2);
+  
+              if (num1 + num2 !== 100) {
+                alert('Weights must sum to 100%');
+                return;
+              }
+  
+              const updated1 = { ...phase1, phaseWeights: { phase1: num1, phase2: num2 } };
+              const updated2 = { ...phase2, phaseWeights: { phase1: num1, phase2: num2 } };
+  
+              updateEvent(events.indexOf(phase1), updated1);
+              updateEvent(events.indexOf(phase2), updated2);
+            }
+          }}
+        >
+          ⚙️ Edit Weights
+        </button>
+  
+        <table>
+          <thead>
+            <tr>
+              <th>Participant</th>
+              <th>Final Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(scores)
+              .sort((a, b) => b[1] - a[1])
+              .map(([name, score]) => (
+                <tr key={name}>
+                  <td>{name}</td>
+                  <td>{score.toFixed(2)}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  })
+)}  
           {events.length === 0 ? (
             <p className="text-center">
               📭 No events yet. Click "➕ Add Event" to begin.
             </p>
           ) : (
             events.map((ev, idx) => {
-              const safeCriteria = ev.criteria.map((c) =>
-                typeof c === 'string' ? { name: c, max: 10 } : c
-              );
               return (
                 <div key={idx} className="card">
                   <div className="flex-center">
@@ -926,15 +1154,16 @@ export default function App() {
   className="btn-yellow"
   onClick={() =>
     promptEditList('Edit Judges', ev.judges, (newList) => {
-      const updatedWeights = {};
+      const updatedWeights: { [judge: string]: number } = {};
+    
       newList.forEach((j) => {
-        const oldWeight = ev.judgeWeights?.[j] || '';
+        const oldWeight = ev.judgeWeights?.[j] ?? '';
         const w = prompt(`Set weight for ${j} (in %):`, oldWeight.toString());
-        if (!isNaN(parseFloat(w))) {
+    
+        if (w !== null && !isNaN(parseFloat(w))) {
           updatedWeights[j] = parseFloat(w);
         }
       });
-
       updateEvent(idx, {
         ...ev,
         judges: newList,
@@ -982,6 +1211,19 @@ export default function App() {
                         ? '🙈 Hide Results from Judges'
                         : '👁️ Show Results to Judges'}
                     </button>
+                    <button
+  className="btn-blue"
+  onClick={() => {
+    const phase = prompt('Set event phase: (Phase 1 / Phase 2)', ev.phaseCategory || '');
+    if (phase === 'Phase 1' || phase === 'Phase 2') {
+      updateEvent(idx, { ...ev, phaseCategory: phase });
+    } else if (phase) {
+      alert('Invalid phase. Must be "Phase 1" or "Phase 2".');
+    }
+  }}
+>
+  🎯 Set Phase
+</button>
                   </div>
 
                   <table>
@@ -1046,7 +1288,7 @@ export default function App() {
             </p>
           ) : (
             visibleJudgeEvents.map((ev, idx) => {
-              const safeCriteria = ev.criteria.map((c) => {
+              const safeCriteria = ev.criteria.map((c: string | { name: string; max: number }) => {
                 if (typeof c === 'string') {
                   const match = c.match(/^(.*?)(?:\s*\((\d+)\))?$/);
                   return {
@@ -1056,7 +1298,7 @@ export default function App() {
                 }
                 return c;
               });
-
+              
               return (
                 <div key={idx} className="card">
                   <h2>{ev.name}</h2>
@@ -1120,7 +1362,7 @@ export default function App() {
                                     }));
                                   }
                                 }}
-                                onBlur={(e) => {
+                                onBlur={() => {
                                   const val = tempScores?.[idx]?.[p]?.[c.name];
                                   if (val !== undefined && val !== '') {
                                     handleInputScore(
