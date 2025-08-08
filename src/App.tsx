@@ -80,7 +80,6 @@ export default function App() {
     const saved = localStorage.getItem('requireFreshLogin');
     return saved === 'false' ? false : true;
   });
-  const [isInitializing, setIsInitializing] = useState(true);
   const [tempScores, setTempScores] = useState<{
     [eventIdx: string]: {
       [participant: string]: {
@@ -406,18 +405,59 @@ const createNewEvent = () => {
     }
   };
 
-  const handleExport = () => {
+  const handleExportSelection = (type: string) => {
     if (!user) return;
+  
     const exportData = {
       events,
       chatMessages,
       judgeCodes,
       organizerPassword,
     };
-    navigator.clipboard.writeText(JSON.stringify(exportData));
-    alert('Data copied to clipboard.');
+  
+    switch (type) {
+      case 'json':
+        navigator.clipboard.writeText(JSON.stringify(exportData));
+        alert('Data copied to clipboard.');
+        break;
+  
+      case 'overallSummary':
+        exportOverallSummaryPDF(); // Assumes this function already uses relevant data
+        break;
+  
+      case 'perJudge':
+        exportPerJudgePDF(); // Assumes per-judge logic is already inside
+        break;
+  
+      case 'specificEvent':
+        exportSpecificEventPDF(); // Assumes you handle event selection internally
+        break;
+  
+      case 'finalSummary':
+        exportFinalSummaryPDF("Final Event", {
+          "Participant A": 90.25,
+          "Participant B": 88.5
+        }, {
+          phase1: 60,
+          phase2: 40
+        });
+        break;
+  
+      case 'combined':
+        exportCombinedPDF("Combined Event", [
+          ["Participant A", 90.25],
+          ["Participant B", 88.5]
+        ], {
+          phase1: 60,
+          phase2: 40
+        });
+        break;
+  
+      default:
+        break;
+    }
   };
-
+    
   const handleAuthLogout = () => {
     signOut(auth).then(() => {
       alert('👋 Signed out');
@@ -1008,22 +1048,29 @@ if (viewMode === 'judge' && !currentJudge) {
               </button>
               <button className="btn-purple" onClick={handleImport}>
                 📥 Import
-              </button>
-              <div className="dropdown">
-                <button className="btn-purple">📤 Export ▼</button>
-                <div className="dropdown-content">
-                  <button onClick={handleExport}>📋 Export All JSON</button>
-                  <button onClick={exportOverallSummaryPDF}>
-                    📊 Overall Summary PDF
-                  </button>
-                  <button onClick={exportPerJudgePDF}>
-                    👨‍⚖️ Per-Judge Results PDF
-                  </button>
-                  <button onClick={exportSpecificEventPDF}>
-                    📄 Specific Event PDF
-                  </button>
-                </div>
-              </div>
+              </button><div className="dropdown">
+  <button className="btn-purple">📤 Export ▼</button>
+  <div className="dropdown-content">
+    <button onClick={() => handleExportSelection('json')}>
+      📋 Export All JSON
+    </button>
+    <button onClick={() => handleExportSelection('overallSummary')}>
+      📊 Overall Summary PDF
+    </button>
+    <button onClick={() => handleExportSelection('perJudge')}>
+      👨‍⚖️ Per-Judge Results PDF
+    </button>
+    <button onClick={() => handleExportSelection('specificEvent')}>
+      📄 Specific Event PDF
+    </button>
+    <button onClick={() => handleExportSelection('finalSummary')}>
+      🏁 Final Combined Summary PDF
+    </button>
+    <button onClick={() => handleExportSelection('combined')}>
+      ⚖️ Two-Phase Combined PDF
+    </button>
+  </div>
+</div>
               <button className="btn-yellow" onClick={generateJudgeCode}>
                 🎫 Generate Judge Code
               </button>
@@ -1058,18 +1105,17 @@ if (viewMode === 'judge' && !currentJudge) {
               </ul>
             </div>
           </div>
-          <h2>📊 Two-Phase Event Summaries</h2>{getTwoPhaseGroups().length === 0 ? (
-  <p>No combined phase summaries yet.</p>
+          <h2>📊 Summaries (Two-Phased Only)</h2>
+{getTwoPhaseGroups().filter((g: { phase1?: any; phase2?: any }) => g.phase1 && g.phase2).length === 0 ? (
+  <p></p>
 ) : (
-  getTwoPhaseGroups().length === 0 ? (
-    <p>No combined phase summaries yet.</p>
-  ) : (
-    <>
-      {console.log('📊 Two-Phase Groups:', getTwoPhaseGroups())}
-      {getTwoPhaseGroups().map((group, idx) => {
+  <>
+    {getTwoPhaseGroups()
+.filter((g: { baseName: string; phase1?: Event; phase2?: Event }) => g.phase1 && g.phase2)
+.map((group, idx) => {
         const { baseName, phase1, phase2 } = group;
         if (!phase1 || !phase2) return null;
-  
+
         const weights = phase1.phaseWeights || { phase1: 60, phase2: 40 };
   
         const participantList = Array.from(
@@ -1174,7 +1220,7 @@ if (viewMode === 'judge' && !currentJudge) {
         );
       })}
     </>
-  ))}
+  )}
             {events.length === 0 ? (
             <p className="text-center">
               📭 No events yet. Click "➕ Add Event" to begin.
