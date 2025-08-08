@@ -1480,8 +1480,7 @@ if (viewMode === 'judge' && !currentJudge) {
                         marginBottom: '10px',
                       }}
                     >
-                      Important: After submitting, you can view the scores
-                      you've given but you cannot change it. Final ranking will
+                      Important: After submitting, you can view the scores but you cannot change it. Final ranking will
                       be shown after the organizer received all scores from all
                       judges. Thank you!
                     </p>
