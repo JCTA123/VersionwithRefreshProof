@@ -1105,7 +1105,7 @@ if (viewMode === 'judge' && !currentJudge) {
               </ul>
             </div>
           </div>
-          <h2>📊 Summaries (Two-Phased Only)</h2>
+          <h2></h2>
 {getTwoPhaseGroups().filter((g: { phase1?: any; phase2?: any }) => g.phase1 && g.phase2).length === 0 ? (
   <p></p>
 ) : (
