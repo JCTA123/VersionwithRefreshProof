@@ -18,7 +18,7 @@ body {
 h1, h2, h3 {
   text-align: center;
   color: #ffffff;
-  text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  text-shadow: 0 4px 12px rgba(0,0,0,0.6);
 }
 
 .text-center, .credits {
