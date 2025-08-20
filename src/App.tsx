@@ -24,7 +24,6 @@ import {
 } from 'firebase/auth';
 import { doc, onSnapshot, updateDoc, setDoc } from 'firebase/firestore';
 
-
 const firebaseConfig = {
   apiKey: 'AIzaSyBtzd0B3fIDJ8XRM1ESKx3klnGZRtVy0Dg',
   authDomain: 'digital-scoresheet-by-jcta.firebaseapp.com',
@@ -98,20 +97,7 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('twoPhaseVisibility', JSON.stringify(twoPhaseVisibility));
   }, [twoPhaseVisibility]);
-  
-  useEffect(() => {
-    const unsub = onSnapshot(doc(firestore, 'appConfig', 'meta'), (docSnap) => {
-      const data = docSnap.data();
-      if (data?.twoPhaseVisibility) {
-        setTwoPhaseVisibility(data.twoPhaseVisibility); // this will update for all users
-      }
-      if (data?.weights) {
-        setWeights(data.weights);
-      }
-    });
-    return () => unsub();
-  }, []);
-      
+        
   type Event = {
     name: string;
     participants: string[];
@@ -164,23 +150,69 @@ export default function App() {
       setOrganizerPassword(snapshot.val() || DEFAULT_PASSWORD);
     });
   }, [user]); // 👈 Make sure to re-run when user changes
-
-// 🔁 1. Auth watcher
+  
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser); // ✅ now setUser is used
+        setAuthChecked(true);  // ✅ now setAuthChecked is used
+      } else {
+        setUser(null);
+        setAuthChecked(true);
+      }
+    });
+  
+    return () => unsubscribe();
+  }, []);
+  
+// === Listen for config from Firestore ===
 useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-    setUser(firebaseUser);
-    setAuthChecked(true);
+  const unsub = onSnapshot(doc(firestore, "appConfig", "meta"), (docSnap) => {
+    const data = docSnap.data();
+    if (!data) return;
 
-    if (!firebaseUser) {
-      localStorage.clear();
-      setOrganizerView(false);
-      setCurrentJudge('');
-      setViewMode('intro');
+    if (data.twoPhaseVisibility) {
+      setTwoPhaseVisibility(data.twoPhaseVisibility);
+    }
+    if (data.weights) {
+      setWeights(data.weights); // load directly from Firestore
     }
   });
 
-  return () => unsubscribe();
-}, []);
+  return () => unsub();
+}, []); // no [events] here, or it will reset on every event change!
+
+// === Persist twoPhaseVisibility to Firestore ===
+useEffect(() => {
+  if (Object.keys(twoPhaseVisibility).length > 0) {
+    setDoc(
+      doc(firestore, "appConfig", "meta"),
+      { twoPhaseVisibility },
+      { merge: true }
+    );
+  }
+}, [twoPhaseVisibility]);
+// === Persist weights to Firebase whenever they change ===
+useEffect(() => {
+  if (Object.keys(weights).length > 0) {
+    setDoc(
+      doc(firestore, "appConfig", "meta"),
+      { weights },
+      { merge: true }
+    );
+  }
+}, [weights]);
+
+// === Persist weights to Firestore ===
+useEffect(() => {
+  if (Object.keys(weights).length > 0) {
+    setDoc(
+      doc(firestore, "appConfig", "meta"),
+      { weights },
+      { merge: true }
+    );
+  }
+}, [weights]);
 
 // 🧠 2. Restore view after auth is confirmed
 useEffect(() => {
@@ -195,26 +227,26 @@ useEffect(() => {
   if (savedOrganizer === 'true') setOrganizerView(true);
 }, [authChecked, user]);
   
-
 const createNewEvent = () => {
-    const name = prompt('Enter event name:');
-    if (!name) return;
-    const newEvents = [
-      ...events,
-      {
-        name,
-        participants: ['Alice', 'Bob'],
-        judges: ['Judge 1'],
-        judgeWeights: { 'Judge 1': 100 },
-        criteria: [{ name: 'Creativity', max: 10 }],
-        scores: {},
-        visibleToJudges: false,
-        resultsVisibleToJudges: false, // ✅ NEW FIELD
-      },
-    ];
-    updateFirebase('events', newEvents);
-    setEvents(newEvents);
-  };
+  const name = prompt('Enter event name:');
+  if (!name) return;
+  const newEvents = [
+    ...events,
+    {
+      name,
+      participants: ['Alice', 'Bob'],
+      judges: ['Judge 1'],
+      judgeWeights: { 'Judge 1': 100 },
+      criteria: [{ name: 'Creativity', max: 10 }],
+      scores: {},
+      visibleToJudges: false,
+      resultsVisibleToJudges: false,
+      phaseWeights: { phase1: 60, phase2: 40 }, // ✅ always default
+    },
+  ];
+  updateFirebase('events', newEvents);
+  setEvents(newEvents);
+};
 
   const deleteEvent = (idx: number) => {
     if (window.confirm('Are you sure you want to delete this event?')) {
@@ -231,37 +263,16 @@ const createNewEvent = () => {
     setEvents(copy); // You likely need this line too to update the UI
   };
 
-// === Load weights and twoPhaseVisibility from Firebase on mount ===
-useEffect(() => {
-  const unsub = onSnapshot(doc(firestore, 'appConfig', 'meta'), (docSnap) => {
-    const data = docSnap.data();
-    if (data?.twoPhaseVisibility) {
-      setTwoPhaseVisibility(data.twoPhaseVisibility);
-    }
-    if (data?.weights) {
-      setWeights(data.weights); // load persisted weights
-    }
-  });
-  return () => unsub();
-}, []);
-
-// === Persist twoPhaseVisibility to Firebase whenever it changes ===
-useEffect(() => {
-  localStorage.setItem('twoPhaseVisibility', JSON.stringify(twoPhaseVisibility));
-}, [twoPhaseVisibility]);
-
-// === Update Weights Function ===
 const updateWeights = async (
   baseName: string,
   newWeights: { phase1: number; phase2: number }
 ) => {
   const updated = { ...weights, [baseName]: newWeights };
-  setWeights(updated); // update local state
+  setWeights(updated);
 
-  // Persist globally in Firestore
   await setDoc(doc(firestore, 'appConfig', 'meta'), { weights: updated }, { merge: true });
 
-  // Also update the individual phase events so table shows correct weights
+  // Also update each event so UI shows immediately
   const idxPhase1 = events.findIndex(
     (e) => e.name === baseName && e.phaseCategory === 'Phase 1'
   );
@@ -612,38 +623,23 @@ const updateWeights = async (
     avg: number;
   };
   const getTwoPhaseGroups = () => {
-    const groups: {
-      baseName: string;
-      phase1?: typeof events[0];
-      phase2?: typeof events[0];
-    }[] = [];
+    const grouped: { [key: string]: { phase1?: Event; phase2?: Event } } = {};
   
-    const eventMap: { [baseName: string]: { phase1?: any; phase2?: any } } = {};
-  
-    events.forEach((ev) => {
-      if (!ev.phaseCategory) return;
-  
-      const baseName = ev.name.replace(/\s*\(Phase [12]\)\s*/i, '').trim();
-  
-      if (!eventMap[baseName]) {
-        eventMap[baseName] = {};
-      }
-  
-      if (ev.phaseCategory === 'Phase 1') {
-        eventMap[baseName].phase1 = ev;
-      } else if (ev.phaseCategory === 'Phase 2') {
-        eventMap[baseName].phase2 = ev;
+    events.forEach((e) => {
+      if (e.phaseCategory) {
+        const baseName = e.name.replace(/ - Phase [12]$/, "");
+        if (!grouped[baseName]) grouped[baseName] = {};
+        if (e.phaseCategory === "Phase 1") grouped[baseName].phase1 = e;
+        if (e.phaseCategory === "Phase 2") grouped[baseName].phase2 = e;
       }
     });
   
-    for (const baseName in eventMap) {
-      const group = eventMap[baseName];
-      if (group.phase1 && group.phase2) {
-        groups.push({ baseName, ...group });
-      }
-    }
+    return Object.entries(grouped).map(([baseName, { phase1, phase2 }]) => {
+      const saved = weights[baseName]; // ← from Firestore
+      const phaseWeights = saved || phase1?.phaseWeights || { phase1: 60, phase2: 40 };
   
-    return groups;
+      return { baseName, phase1, phase2, phaseWeights };
+    });
   };
   
   const renderSummary = (ev: Event) => {
@@ -989,7 +985,7 @@ const updateWeights = async (
   if (!user || requireFreshLogin) {
     return (
       <div className="intro-screen">
-        <h1>🎯 Digital Scoresheet App</h1>
+        <h1>🎯 Digital Scoresheet</h1>
         <p className="text-center credits">made by JCTA</p>
         <div className="flex-center">
           <button className="btn-purple" onClick={loginWithEmail}>
@@ -1007,12 +1003,12 @@ const updateWeights = async (
 if (viewMode === 'organizer' && !organizerView) {
   return (
     <div className="intro-screen">
-      <h2>🔒 Enter Organizer Password</h2>
+      <h2>🔒 Organizer Log-in</h2>
       <input
         type="password"
         value={orgPasswordInput}
         onChange={(e) => setOrgPasswordInput(e.target.value)}
-        placeholder="Enter password"
+        placeholder="Enter organizer password (Default: JCTA123)"
       />
       <br />
       <button className="btn-blue" onClick={handleOrganizerLogin}>
@@ -1029,7 +1025,7 @@ if (viewMode === 'organizer' && !organizerView) {
 if (viewMode === 'intro') {
   return (
     <div className="intro-screen">
-      <h1>🎯 Digital Scoresheet App</h1>
+      <h1>🎯 Digital Scoresheet</h1>
       <p className="text-center credits">made by JCTA</p>
       <div className="flex-center">
         <button className="btn-blue" onClick={() => setViewMode('judge')}>
@@ -1053,7 +1049,7 @@ if (viewMode === 'intro') {
 if (viewMode === 'judge' && !currentJudge) {
   return (
     <div className="intro-screen">
-      <h2>Judge Login</h2>
+      <h2>Judge Log-in</h2>
       <input
         placeholder="Enter code"
         value={codeInput}
@@ -1100,7 +1096,7 @@ if (viewMode === 'judge' && !currentJudge) {
       {viewMode === 'organizer' && organizerView ? (
         <>
           <div className="top-bar">
-            <h1>🎯 Digital Scoresheet App</h1>
+            <h1>🎯 Digital Scoresheet</h1>
             <p className="text-center credits">made by JCTA</p>
             <div className="flex-center">
               <button className="btn-green" onClick={createNewEvent}>
@@ -1443,103 +1439,49 @@ if (viewMode === 'judge' && !currentJudge) {
             })
           )}
         </>
-      ) : (
-        // --- Judge View Rendering ---
-        <>
-          <div className="top-bar">
-            <h1>🎯 Digital Scoresheet App</h1>
-            <p className="text-center credits">made by JCTA</p>
-            <button className="btn-gray" onClick={refreshAllData}>
-              🔄 Refresh Data
-            </button>
-            <button className="btn-red" onClick={handleAuthLogout}>
-              🚪 Logout
-            </button>
-          </div>
-
-          {visibleJudgeEvents.length === 0 ? (
-            <p
-              style={{
-                textAlign: 'center',
-                marginTop: '60px',
-                fontSize: '18px',
-                fontWeight: 'bold',
-                color: '#444',
-              }}
-            >
-              There's no assigned events yet. Please wait for the organizer.
-              Thank you!
-            </p>
-          ) : (
-            visibleJudgeEvents.map((ev, idx) => {
-              <h2>📊 Combined Two-Phase Results (if any)</h2>
-{getTwoPhaseGroups()
-  .filter((group) => twoPhaseVisibility[group.baseName])
-  .map((group, idx) => {
-    const { baseName, phase1, phase2 } = group;
-    if (!phase1 || !phase2) return null;
-
-    const weights = phase1.phaseWeights || { phase1: 60, phase2: 40 };
-
-    const participantList = Array.from(
-      new Set([...phase1.participants, ...phase2.participants])
-    );
-
-    const scores = participantList.map((p) => {
-      const avg1 = Number(calcAvg(phase1, p) || 0);
-      const avg2 = Number(calcAvg(phase2, p) || 0);
-      return {
-        name: p,
-        phase1Score: avg1,
-        phase2Score: avg2,
-        finalScore: (avg1 * weights.phase1 + avg2 * weights.phase2) / 100,
-      };
-    });
-
-    return (
-      <div key={idx} className="card">
-        <h3>{baseName} - Final Combined Ranking</h3>
-        <p>
-          🎯 Weighting: Phase 1 = {weights.phase1}% | Phase 2 = {weights.phase2}%
-        </p>
-
-        <table>
-          <thead>
-            <tr>
-              <th>Participant</th>
-              <th>Phase 1 Score</th>
-              <th>Phase 2 Score</th>
-              <th>Final Weighted Score</th>
-            </tr>
-          </thead>
-          <tbody>
-            {scores
-              .sort((a, b) => b.finalScore - a.finalScore)
-              .map((row, i) => (
-                <tr key={i}>
-                  <td>{row.name}</td>
-                  <td>{row.phase1Score.toFixed(2)}</td>
-                  <td>{row.phase2Score.toFixed(2)}</td>
-                  <td>{row.finalScore.toFixed(2)}</td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  })}
-
-              const safeCriteria = ev.criteria.map((c: string | { name: string; max: number }) => {
-                if (typeof c === 'string') {
-                  const match = c.match(/^(.*?)(?:\s*\((\d+)\))?$/);
-                  return {
-                    name: match?.[1]?.trim() || c,
-                    max: match?.[2] ? parseInt(match[2]) : 10,
-                  };
+      ) : (// --- Judge View Rendering ---
+      <>
+        <div className="top-bar">
+          <h1>🎯 Digital Scoresheet</h1>
+          <p className="text-center credits">made by JCTA</p>
+          <button className="btn-gray" onClick={refreshAllData}>
+            🔄 Refresh Data
+          </button>
+          <button className="btn-red" onClick={handleAuthLogout}>
+            🚪 Logout
+          </button>
+        </div>
+      
+        {visibleJudgeEvents.length === 0 ? (
+          <p
+            style={{
+              textAlign: 'center',
+              marginTop: '60px',
+              fontSize: '18px',
+              fontWeight: 'bold',
+              color: '#444',
+            }}
+          >
+            There's no assigned events yet. Please wait for the organizer.
+            Thank you!
+          </p>
+        ) : (
+          <>
+            {/* --- Single-Phase Events Rendering --- */}
+            {visibleJudgeEvents.map((ev, idx) => {
+              const safeCriteria = ev.criteria.map(
+                (c: string | { name: string; max: number }) => {
+                  if (typeof c === 'string') {
+                    const match = c.match(/^(.*?)(?:\s*\((\d+)\))?$/);
+                    return {
+                      name: match?.[1]?.trim() || c,
+                      max: match?.[2] ? parseInt(match[2]) : 10,
+                    };
+                  }
+                  return c;
                 }
-                return c;
-              });
-              
+              );
+      
               return (
                 <div key={idx} className="card">
                   <h2>{ev.name}</h2>
@@ -1552,9 +1494,9 @@ if (viewMode === 'judge' && !currentJudge) {
                         marginBottom: '10px',
                       }}
                     >
-                      Important: After submitting, you can view the scores but you cannot change it. Final ranking will
-                      be shown after the organizer received all scores from all
-                      judges. Thank you!
+                      Important: After submitting, you can view the scores but you
+                      cannot change it. Final ranking will be shown after the
+                      organizer received all scores from all judges. Thank you!
                     </p>
                   )}
                   <table>
@@ -1584,9 +1526,7 @@ if (viewMode === 'judge' && !currentJudge) {
                                   ev.scores?.[currentJudge]?.[p]?.[c.name] ??
                                   ''
                                 }
-                                disabled={ev.submittedJudges?.includes(
-                                  currentJudge
-                                )}
+                                disabled={ev.submittedJudges?.includes(currentJudge)}
                                 onChange={(e) => {
                                   const newVal = e.target.value;
                                   if (Number(newVal) <= c.max) {
@@ -1603,7 +1543,8 @@ if (viewMode === 'judge' && !currentJudge) {
                                   }
                                 }}
                                 onBlur={() => {
-                                  const val = tempScores?.[idx]?.[p]?.[c.name];
+                                  const val =
+                                    tempScores?.[idx]?.[p]?.[c.name];
                                   if (val !== undefined && val !== '') {
                                     handleInputScore(
                                       idx,
@@ -1622,7 +1563,7 @@ if (viewMode === 'judge' && !currentJudge) {
                       ))}
                     </tbody>
                   </table>
-
+      
                   {!ev.submittedJudges?.includes(currentJudge) ? (
                     <button
                       className="btn-green"
@@ -1640,11 +1581,69 @@ if (viewMode === 'judge' && !currentJudge) {
                   )}
                 </div>
               );
-            })
-          )}
-        </>
-      )}
+            })}
+      
+            {/* --- Combined Two-Phase Results --- */}
+            <h2>📊 Combined Two-Phase Results (if any)</h2>
+            {getTwoPhaseGroups()
+              .filter((group) => twoPhaseVisibility[group.baseName])
+              .map((group, idx) => {
+                const { baseName, phase1, phase2 } = group;
+                if (!phase1 || !phase2) return null;
+      
+                const phaseWeights = weights[baseName] ?? { phase1: 60, phase2: 40 };
 
+                const participantList = Array.from(
+                  new Set([...phase1.participants, ...phase2.participants])
+                );
+                
+                const scores = participantList.map((p) => {
+                  const avg1 = Number(calcAvg(phase1, p) || 0);
+                  const avg2 = Number(calcAvg(phase2, p) || 0);
+                
+                  return {
+                    name: p,
+                    phase1Score: avg1,
+                    phase2Score: avg2,
+                    finalScore:
+                      (avg1 * phaseWeights.phase1 + avg2 * phaseWeights.phase2) / 100,
+                  };
+                });
+                
+                return (
+                  <div key={idx} className="card">
+                    <h3>{baseName} - Final Combined Ranking</h3>
+                    <p>
+                      🎯 Weighting: Phase 1 = {phaseWeights.phase1}% | Phase 2 = {phaseWeights.phase2}%
+                    </p>                                    <table>
+                      <thead>
+                        <tr>
+                          <th>Participant</th>
+                          <th>Phase 1 Score</th>
+                          <th>Phase 2 Score</th>
+                          <th>Final Weighted Score</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scores
+                          .sort((a, b) => b.finalScore - a.finalScore)
+                          .map((row, i) => (
+                            <tr key={i}>
+                              <td>{row.name}</td>
+                              <td>{row.phase1Score.toFixed(2)}</td>
+                              <td>{row.phase2Score.toFixed(2)}</td>
+                              <td>{row.finalScore.toFixed(2)}</td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })}
+          </>
+        )}
+      </>
+      )}      
       {/* Chat Section */}
       <div className="chat-box">
         <button
