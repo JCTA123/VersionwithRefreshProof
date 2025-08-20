@@ -1584,7 +1584,7 @@ if (viewMode === 'judge' && !currentJudge) {
             })}
       
             {/* --- Combined Two-Phase Results --- */}
-            <h2>📊 Combined Two-Phase Results (if any)</h2>
+            <h2></h2>
             {getTwoPhaseGroups()
               .filter((group) => twoPhaseVisibility[group.baseName])
               .map((group, idx) => {
