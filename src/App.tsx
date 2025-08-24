@@ -38,6 +38,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const firestore = getFirestore(app); // ✅ this is what we need
 const db = getDatabase(app);
+const fs = getFirestore(app);
 
 const DEFAULT_PASSWORD = 'JCTA123';
 
@@ -167,19 +168,15 @@ export default function App() {
   
 // === Listen for config from Firestore ===
 useEffect(() => {
-  console.log('🔄 Setting up Firestore listener for weights and visibility...');
   const unsub = onSnapshot(doc(firestore, "appConfig", "meta"), (docSnap) => {
     const data = docSnap.data();
     if (!data) return;
 
     if (data.twoPhaseVisibility) {
-      console.log('📥 Loading twoPhaseVisibility from Firestore:', data.twoPhaseVisibility);
       setTwoPhaseVisibility(data.twoPhaseVisibility);
     }
     if (data.weights) {
-      console.log('📥 Loading weights from Firestore:', data.weights);
-      console.log('Loading weights from Firestore:', data.weights);
-      setWeights(data.weights);
+      setWeights(data.weights); // load directly from Firestore
     }
   });
 
@@ -196,7 +193,27 @@ useEffect(() => {
     );
   }
 }, [twoPhaseVisibility]);
+// === Persist weights to Firebase whenever they change ===
+useEffect(() => {
+  if (Object.keys(weights).length > 0) {
+    setDoc(
+      doc(firestore, "appConfig", "meta"),
+      { weights },
+      { merge: true }
+    );
+  }
+}, [weights]);
 
+// === Persist weights to Firestore ===
+useEffect(() => {
+  if (Object.keys(weights).length > 0) {
+    setDoc(
+      doc(firestore, "appConfig", "meta"),
+      { weights },
+      { merge: true }
+    );
+  }
+}, [weights]);
 
 // 🧠 2. Restore view after auth is confirmed
 useEffect(() => {
@@ -224,6 +241,8 @@ const createNewEvent = () => {
       criteria: [{ name: 'Creativity', max: 10 }],
       scores: {},
       visibleToJudges: false,
+      resultsVisibleToJudges: false,
+      phaseWeights: { phase1: 60, phase2: 40 }, // ✅ always default
     },
   ];
   updateFirebase('events', newEvents);
@@ -249,19 +268,38 @@ const updateWeights = async (
   baseName: string,
   newWeights: { phase1: number; phase2: number }
 ) => {
-  console.log('Updating weights for', baseName, ':', newWeights);
   const updated = { ...weights, [baseName]: newWeights };
   setWeights(updated);
 
-  try {
-    await setDoc(doc(firestore, 'appConfig', 'meta'), { weights: updated }, { merge: true });
-    console.log('Weights saved to Firestore successfully');
-  } catch (error) {
-    console.error('Failed to save weights to Firestore:', error);
-  }
+  await setDoc(doc(firestore, 'appConfig', 'meta'), { weights: updated }, { merge: true });
 
+  // Also update each event so UI shows immediately
+  const idxPhase1 = events.findIndex(
+    (e) => e.name === baseName && e.phaseCategory === 'Phase 1'
+  );
+  const idxPhase2 = events.findIndex(
+    (e) => e.name === baseName && e.phaseCategory === 'Phase 2'
+  );
+
+  if (idxPhase1 !== -1)
+    updateEvent(idxPhase1, { ...events[idxPhase1], phaseWeights: newWeights });
+  if (idxPhase2 !== -1)
+    updateEvent(idxPhase2, { ...events[idxPhase2], phaseWeights: newWeights });
 };
-
+// === Save Weights handler ===
+const saveWeights = async (baseName: string, phaseWeights: { phase1: number; phase2: number }) => {
+  try {
+    await setDoc(
+      doc(fs, "appConfig", "meta"),
+      { weights: { [baseName]: phaseWeights } },
+      { merge: true }
+    );
+    alert("✅ Weights saved successfully!");
+  } catch (err: any) {
+    console.error("Error saving weights:", err);
+    alert("❌ Failed to save weights: " + (err.message || err));
+  }
+  };
   const toggleVisibility = (idx: number) => {
     const ev = events[idx];
     const updated = { ...ev, visibleToJudges: !ev.visibleToJudges };
@@ -611,8 +649,8 @@ const updateWeights = async (
     });
   
     return Object.entries(grouped).map(([baseName, { phase1, phase2 }]) => {
-      // Always use weights from state (loaded from Firestore), fallback to default only if not set
-      const phaseWeights = weights[baseName] || { phase1: 60, phase2: 40 };
+      const saved = weights[baseName]; // ← from Firestore
+      const phaseWeights = saved || phase1?.phaseWeights || { phase1: 60, phase2: 40 };
   
       return { baseName, phase1, phase2, phaseWeights };
     });
@@ -1229,6 +1267,13 @@ if (viewMode === 'judge' && !currentJudge) {
             >
               ⚙️ Edit Weights
             </button>
+            {/* Save Weights */}
+            <button
+  className="btn-green"
+  onClick={() => saveWeights(baseName, phaseWeights)}
+>
+  💾 Save Weights
+</button>
 
             <button
               className="btn-blue"
@@ -1567,7 +1612,7 @@ if (viewMode === 'judge' && !currentJudge) {
                 const { baseName, phase1, phase2 } = group;
                 if (!phase1 || !phase2) return null;
       
-                const phaseWeights = weights[baseName] || { phase1: 60, phase2: 40 };
+                const phaseWeights = weights[baseName] ?? { phase1: 60, phase2: 40 };
 
                 const participantList = Array.from(
                   new Set([...phase1.participants, ...phase2.participants])
