@@ -997,7 +997,7 @@ const saveWeights = async (baseName: string, phaseWeights: { phase1: number; pha
     const password = prompt('Enter password:');
   
     if (!email || !password) {
-      alert('❌ Email and password are required.');
+      alert('❌ Email and password are required');
       return;
     }
   
@@ -1210,9 +1210,6 @@ if (viewMode === 'judge' && !currentJudge) {
                 }}
               >
                 👨‍⚖️ Switch to Judge View
-              </button>
-              <button className="btn-red" onClick={handleAuthLogout}>
-                🚪 Logout
               </button>
             </div>
 
@@ -1520,9 +1517,6 @@ if (viewMode === 'judge' && !currentJudge) {
           <button className="btn-gray" onClick={refreshAllData}>
             🔄 Refresh Data
           </button>
-          <button className="btn-red" onClick={handleAuthLogout}>
-            🚪 Logout
-          </button>
         </div>
       
         {visibleJudgeEvents.length === 0 ? (
@@ -1652,6 +1646,10 @@ if (viewMode === 'judge' && !currentJudge) {
                       {ev.resultsVisibleToJudges && renderSummary(ev)}
                     </>
                   )}
+                            <button className="btn-red" onClick={handleAuthLogout}>
+            🚪 Logout
+          </button>
+
                 </div>
               );
             })}
@@ -1755,6 +1753,9 @@ if (viewMode === 'judge' && !currentJudge) {
     <button className="btn-red" onClick={handleFreeze}>
       {frozen ? '🔓 Unfreeze' : '❄️ Freeze'}
     </button>
+    <button className="btn-red" onClick={handleAuthLogout}>
+                🚪 Logout
+              </button>
   </div>
 </>
   );
