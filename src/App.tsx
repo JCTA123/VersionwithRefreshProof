@@ -233,21 +233,27 @@ useEffect(() => {
 }, [authChecked, user]);
 
 const [frozen, setFrozen] = useState(false);
+
 // Firebase reference
-const frozenDocRef = doc(fs, "appConfig", "meta");
+const frozenDocRef = user ? doc(fs, "users", user.uid, "settings", "freeze") : null;
 
 // Listen for real-time updates
 useEffect(() => {
+  if (!frozenDocRef) return;
+
   const unsubscribe = onSnapshot(frozenDocRef, (docSnap) => {
     if (docSnap.exists()) {
       const data = docSnap.data();
-      if (data.frozen !== undefined) setFrozen(data.frozen);
+      setFrozen(data?.frozen ?? false);
     }
   });
+
   return () => unsubscribe();
-}, []);
+}, [frozenDocRef]);
 
 const handleFreeze = async () => {
+  if (!user || !frozenDocRef) return;
+
   const input = prompt(
     frozen
       ? "Enter organizer password to unfreeze:"
