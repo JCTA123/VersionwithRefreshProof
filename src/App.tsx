@@ -98,7 +98,11 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('twoPhaseVisibility', JSON.stringify(twoPhaseVisibility));
   }, [twoPhaseVisibility]);
-        
+  interface DisabledWrapper {
+    frozen: boolean;
+    children: React.ReactNode; // ✅ now TS knows it accepts children
+  };
+  
   type Event = {
     name: string;
     participants: string[];
@@ -227,7 +231,42 @@ useEffect(() => {
   if (savedJudge) setCurrentJudge(savedJudge);
   if (savedOrganizer === 'true') setOrganizerView(true);
 }, [authChecked, user]);
-  
+
+const [frozen, setFrozen] = useState(false);
+// Firebase reference
+const frozenDocRef = doc(fs, "appConfig", "meta");
+
+// Listen for real-time updates
+useEffect(() => {
+  const unsubscribe = onSnapshot(frozenDocRef, (docSnap) => {
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      if (data.frozen !== undefined) setFrozen(data.frozen);
+    }
+  });
+  return () => unsubscribe();
+}, []);
+
+const handleFreeze = async () => {
+  const input = prompt(
+    frozen
+      ? "Enter organizer password to unfreeze:"
+      : "Enter organizer password to freeze:"
+  );
+
+  if (input === organizerPassword) {
+    try {
+      await setDoc(frozenDocRef, { frozen: !frozen }, { merge: true });
+      alert(!frozen ? "Frozen ❄️" : "Unfrozen ✅");
+    } catch (err) {
+      console.error(err);
+      alert("Error updating frozen state!");
+    }
+  } else {
+    alert("Incorrect password!");
+  }
+};
+
 const createNewEvent = () => {
   const name = prompt('Enter event name:');
   if (!name) return;
@@ -600,7 +639,18 @@ const saveWeights = async (baseName: string, phaseWeights: { phase1: number; pha
 
     alert('✅ Data refreshed from Firebase.');
   };
-
+  const DisabledWrapper: React.FC<DisabledWrapper> = ({ frozen, children }) => {
+    return (
+      <div
+        style={{
+          pointerEvents: frozen ? "none" : "auto",
+          opacity: frozen ? 0.5 : 1,
+        }}
+      >
+        {children}
+      </div>
+    );
+  };
   const calcTotalForJudge = (
     ev: Event,
     judge: string,
@@ -1106,6 +1156,8 @@ if (viewMode === 'judge' && !currentJudge) {
         .includes(currentJudge.trim().toLowerCase())
   );
   return (
+  <>
+  <DisabledWrapper frozen={frozen}>
     <div className="app-container">
       {viewMode === 'organizer' && organizerView ? (
         <>
@@ -1665,37 +1717,45 @@ if (viewMode === 'judge' && !currentJudge) {
         )}
       </>
       )}      
-      {/* Chat Section */}
-      <div className="chat-box">
-        <button
-          className="btn-purple"
-          onClick={() => setChatOpen((prev) => !prev)}
-        >
-          💬 {chatOpen ? 'Close Chat' : 'Open Chat'}
-        </button>
-
-        {chatOpen && (
-          <div className="chat-window">
-            <div className="chat-messages">
-              {chatMessages.map((msg, i) => (
-                <p key={i}>
-                  <strong>{msg.sender}:</strong> {msg.text}
-                </p>
-              ))}
-            </div>
-            <div className="chat-input">
-              <input
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type your message..."
-              />
-              <button className="btn-blue" onClick={handleSendMessage}>
-                Send
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
+    </DisabledWrapper>
+          {/* Chat Section */}
+          <div className="chat-box">
+          <button
+            className="btn-purple"
+            onClick={() => setChatOpen((prev) => !prev)}
+          >
+            💬 {chatOpen ? 'Close Chat' : 'Open Chat'}
+          </button>
+  
+          {chatOpen && (
+            <div className="chat-window">
+              <div className="chat-messages">
+                {chatMessages.map((msg, i) => (
+                  <p key={i}>
+                    <strong>{msg.sender}:</strong> {msg.text}
+                  </p>
+                ))}
+              </div>
+              <div className="chat-input">
+                <input
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Type your message..."
+                />
+                <button className="btn-blue" onClick={handleSendMessage}>
+                  Send
+                </button>
+              </div>
+            </div>
+          )}
+        </div>  
+      {/* Freeze/Unfreeze Button at the bottom - ALWAYS clickable */}
+    <div style={{ marginTop: '20px', textAlign: 'center' }}>
+    <button className="btn-red" onClick={handleFreeze}>
+      {frozen ? '🔓 Unfreeze' : '❄️ Freeze'}
+    </button>
+  </div>
+</>
   );
 }
