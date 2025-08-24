@@ -167,14 +167,17 @@ export default function App() {
   
 // === Listen for config from Firestore ===
 useEffect(() => {
+  console.log('🔄 Setting up Firestore listener for weights and visibility...');
   const unsub = onSnapshot(doc(firestore, "appConfig", "meta"), (docSnap) => {
     const data = docSnap.data();
     if (!data) return;
 
     if (data.twoPhaseVisibility) {
+      console.log('📥 Loading twoPhaseVisibility from Firestore:', data.twoPhaseVisibility);
       setTwoPhaseVisibility(data.twoPhaseVisibility);
     }
     if (data.weights) {
+      console.log('📥 Loading weights from Firestore:', data.weights);
       console.log('Loading weights from Firestore:', data.weights);
       setWeights(data.weights);
     }
@@ -221,7 +224,6 @@ const createNewEvent = () => {
       criteria: [{ name: 'Creativity', max: 10 }],
       scores: {},
       visibleToJudges: false,
-      resultsVisibleToJudges: false,
     },
   ];
   updateFirebase('events', newEvents);
