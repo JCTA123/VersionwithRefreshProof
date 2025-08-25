@@ -1043,7 +1043,7 @@ const saveWeights = async (baseName: string, phaseWeights: { phase1: number; pha
   if (!authChecked) {
     return (
       <div className="intro-screen">
-        <h1>🎯 Digital Scoresheet App</h1>
+        <h1>🎯 Digital Scoresheet</h1>
         <p className="text-center credits">made by JCTA</p>
         <div className="flex-center">
           <p>⏳ Checking authentication...</p>
