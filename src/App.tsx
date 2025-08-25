@@ -1297,7 +1297,7 @@ if (viewMode === 'judge' && !currentJudge) {
     return (
       <div key={idx} className="card">
         <h3>{baseName} - Final Combined Ranking</h3>
-        <p>🎯 Weighting: Phase 1 = {phaseWeights.phase1}% | Phase 2 = {phaseWeights.phase2}%</p>
+        <p> Weighting: Phase 1 = {phaseWeights.phase1}% | Phase 2 = {phaseWeights.phase2}%</p>
 
         {viewMode === 'organizer' && (
           <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
@@ -1691,7 +1691,7 @@ if (viewMode === 'judge' && !currentJudge) {
                   <div key={idx} className="card">
                     <h3>{baseName} - Final Combined Ranking</h3>
                     <p>
-                      🎯 Weighting: Phase 1 = {phaseWeights.phase1}% | Phase 2 = {phaseWeights.phase2}%
+                       Weighting: Phase 1 = {phaseWeights.phase1}% | Phase 2 = {phaseWeights.phase2}%
                     </p>                                    <table>
                       <thead>
                         <tr>
