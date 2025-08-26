@@ -1590,45 +1590,143 @@ if (viewMode === 'judge' && !currentJudge) {
                           <td>{p}</td>
                           {safeCriteria.map((c, cdx) => (
                             <td key={cdx}>
-                              <input
-                                type="number"
-                                min={0}
-                                max={c.max}
-                                value={
-                                  tempScores?.[idx]?.[p]?.[c.name] ??
-                                  ev.scores?.[currentJudge]?.[p]?.[c.name] ??
-                                  ''
-                                }
-                                disabled={ev.submittedJudges?.includes(currentJudge)}
-                                onChange={(e) => {
-                                  const newVal = e.target.value;
-                                  if (Number(newVal) <= c.max) {
-                                    setTempScores((prev) => ({
-                                      ...prev,
-                                      [idx]: {
-                                        ...(prev[idx] || {}),
-                                        [p]: {
-                                          ...(prev[idx]?.[p] || {}),
-                                          [c.name]: newVal,
-                                        },
-                                      },
-                                    }));
-                                  }
-                                }}
-                                onBlur={() => {
-                                  const val =
-                                    tempScores?.[idx]?.[p]?.[c.name];
-                                  if (val !== undefined && val !== '') {
-                                    handleInputScore(
-                                      idx,
-                                      currentJudge,
-                                      p,
-                                      c.name,
-                                      Number(val)
-                                    );
-                                  }
-                                }}
-                              />
+<td key={cdx} className="score-cell">
+  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+    {/* – Button */}
+    <button
+      className="buttonn"
+      disabled={ev.submittedJudges?.includes(currentJudge)}
+      onClick={() => {
+        const current = Number(
+          tempScores?.[idx]?.[p]?.[c.name] ??
+          ev.scores?.[currentJudge]?.[p]?.[c.name] ??
+          0
+        );
+        if (current > 0) {
+          setTempScores((prev) => ({
+            ...prev,
+            [idx]: {
+              ...(prev[idx] || {}),
+              [p]: {
+                ...(prev[idx]?.[p] || {}),
+                [c.name]: String(current - 1),
+              },
+            },
+          }));
+        }
+      }}
+    >
+      -1
+    </button>
+
+    <input
+  type="number"
+  min={0}
+  max={c.max}
+  value={
+    tempScores?.[idx]?.[p]?.[c.name] ??
+    ev.scores?.[currentJudge]?.[p]?.[c.name] ??
+    ""
+  }
+  disabled={ev.submittedJudges?.includes(currentJudge)}
+  onChange={(e) => {
+    // Let user type freely but enforce range
+    const val = e.target.value;
+    if (val === "" || (!isNaN(Number(val)) && Number(val) <= c.max && Number(val) >= 0)) {
+      setTempScores((prev) => ({
+        ...prev,
+        [idx]: {
+          ...(prev[idx] || {}),
+          [p]: {
+            ...(prev[idx]?.[p] || {}),
+            [c.name]: val,
+          },
+        },
+      }));
+    }
+  }}
+  onBlur={() => {
+    // Commit when leaving the field
+    const val = tempScores?.[idx]?.[p]?.[c.name];
+    if (val !== undefined && val !== "") {
+      handleInputScore(idx, currentJudge, p, c.name, Number(val));
+    }
+  }}
+  onKeyDown={(e) => {
+    const current = Number(
+      tempScores?.[idx]?.[p]?.[c.name] ??
+      ev.scores?.[currentJudge]?.[p]?.[c.name] ??
+      0
+    );
+
+    if (e.key === "Enter" || e.key === "Tab") {
+      const val = tempScores?.[idx]?.[p]?.[c.name];
+      if (val !== undefined && val !== "") {
+        handleInputScore(idx, currentJudge, p, c.name, Number(val));
+      }
+    }
+
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (current < c.max) {
+        setTempScores((prev) => ({
+          ...prev,
+          [idx]: {
+            ...(prev[idx] || {}),
+            [p]: {
+              ...(prev[idx]?.[p] || {}),
+              [c.name]: String(current + 5),
+            },
+          },
+        }));
+      }
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (current > 0) {
+        setTempScores((prev) => ({
+          ...prev,
+          [idx]: {
+            ...(prev[idx] || {}),
+            [p]: {
+              ...(prev[idx]?.[p] || {}),
+              [c.name]: String(current - 1),
+            },
+          },
+        }));
+      }
+    }
+  }}
+  style={{ width: "60px", textAlign: "center" }}
+/>
+
+    {/* + Button */}
+    <button
+      className="buttonn"
+      disabled={ev.submittedJudges?.includes(currentJudge)}
+      onClick={() => {
+        const current = Number(
+          tempScores?.[idx]?.[p]?.[c.name] ??
+          ev.scores?.[currentJudge]?.[p]?.[c.name] ??
+          0
+        );
+        if (current < c.max) {       
+          setTempScores((prev) => ({
+            ...prev,
+            [idx]: {
+              ...(prev[idx] || {}),
+              [p]: {
+                ...(prev[idx]?.[p] || {}),
+                [c.name]: String(current + 5),
+              },
+            },
+          }));
+        }
+      }}
+    >
+      +5
+    </button>
+  </div>
+</td>
                             </td>
                           ))}
 <td>
