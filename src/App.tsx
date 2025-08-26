@@ -1631,7 +1631,20 @@ if (viewMode === 'judge' && !currentJudge) {
                               />
                             </td>
                           ))}
-                          <td>{calcTotalForJudge(ev, currentJudge, p)}</td>
+<td>
+  {(() => {
+    const draft = tempScores?.[idx]?.[p] || {};
+    const committed = ev.scores?.[currentJudge]?.[p] || {};
+
+    return safeCriteria.reduce((sum, c) => {
+      const val = draft[c.name] !== undefined && draft[c.name] !== ""
+        ? Number(draft[c.name])
+        : committed[c.name] || 0;
+      return sum + val;
+    }, 0);
+  })()}
+</td>
+
                         </tr>
                       ))}
                     </tbody>
@@ -1652,10 +1665,6 @@ if (viewMode === 'judge' && !currentJudge) {
                       {ev.resultsVisibleToJudges && renderSummary(ev)}
                     </>
                   )}
-                            <button className="btn-red" onClick={handleAuthLogout}>
-            🚪 Logout
-          </button>
-
                 </div>
               );
             })}
