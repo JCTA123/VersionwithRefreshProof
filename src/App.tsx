@@ -1699,32 +1699,33 @@ if (viewMode === 'judge' && !currentJudge) {
   style={{ width: "60px", textAlign: "center" }}
 />
 
-    {/* + Button */}
-    <button
-      className="buttonn"
-      disabled={ev.submittedJudges?.includes(currentJudge)}
-      onClick={() => {
-        const current = Number(
-          tempScores?.[idx]?.[p]?.[c.name] ??
-          ev.scores?.[currentJudge]?.[p]?.[c.name] ??
-          0
-        );
-        if (current < c.max) {       
-          setTempScores((prev) => ({
-            ...prev,
-            [idx]: {
-              ...(prev[idx] || {}),
-              [p]: {
-                ...(prev[idx]?.[p] || {}),
-                [c.name]: String(current + 5),
-              },
-            },
-          }));
-        }
-      }}
-    >
-      +5
-    </button>
+{/* + Button */}
+<button
+  className="buttonn"
+  disabled={ev.submittedJudges?.includes(currentJudge)}
+  onClick={() => {
+    const current = Number(
+      tempScores?.[idx]?.[p]?.[c.name] ??
+      ev.scores?.[currentJudge]?.[p]?.[c.name] ??
+      0
+    );
+
+    const newScore = Math.min(current + 5, c.max); // clamp to max
+
+    setTempScores((prev) => ({
+      ...prev,
+      [idx]: {
+        ...(prev[idx] || {}),
+        [p]: {
+          ...(prev[idx]?.[p] || {}),
+          [c.name]: String(newScore),
+        },
+      },
+    }));
+  }}
+>
+  +5
+</button>
   </div>
 </td>
                             </td>
@@ -1750,12 +1751,16 @@ if (viewMode === 'judge' && !currentJudge) {
       
                   {!ev.submittedJudges?.includes(currentJudge) ? (
                     <button
-                      className="btn-green"
-                      onClick={() => handleSubmitScores(idx)}
-                    >
-                      Submit Scores
-                    </button>
-                  ) : (
+                    className="btn-green"
+                    onClick={() => {
+                      if (window.confirm("Are you sure you want to submit your scores? You won't be able to change them afterwards.")) {
+                        handleSubmitScores(idx);
+                      }
+                    }}
+                  >
+                    Submit Scores
+                  </button>                  
+                                    ) : (
                     <>
                       <p className="submitted-label">
                         Submitted. You can view but not change scores.
@@ -1866,9 +1871,16 @@ if (viewMode === 'judge' && !currentJudge) {
     <button className="btn-red" onClick={handleFreeze}>
       {frozen ? '🔓 Unfreeze' : '❄️ Freeze'}
     </button>
-    <button className="btn-red" onClick={handleAuthLogout}>
-                🚪 Logout
-              </button>
+    <button
+  className="btn-red"
+  onClick={() => {
+    if (window.confirm("Are you sure you want to logout?")) {
+      handleAuthLogout();
+    }
+  }}
+>
+  🚪 Logout
+</button>
   </div>
 </>
   );
