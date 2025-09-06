@@ -55,6 +55,9 @@ export default function App() {
     'intro'
   );
   const [user, setUser] = useState<User | null>(null);
+  const [loginEmail, setLoginEmail] = useState("");
+const [loginPassword, setLoginPassword] = useState("");
+
   const updateFirebase = (key: string, data: any) => {
     if (!user) {
       console.warn('❌ No user. Skipping updateFirebase.');
@@ -997,78 +1000,104 @@ const saveWeights = async (baseName: string, phaseWeights: { phase1: number; pha
 
     doc.save(`${ev.name.replace(/\s+/g, '_')}_summary.pdf`);
   };
-
-  const loginWithEmail = async () => {
-    const email = prompt('Enter email:');
-    const password = prompt('Enter password:');
-  
-    if (!email || !password) {
-      alert('❌ Email and password are required');
-      return;
-    }
-  
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      alert('✅ Logged in successfully.');
-      localStorage.setItem('requireFreshLogin', 'false');
-      setRequireFreshLogin(false);
-      setViewMode('intro');
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      alert('❌ Login failed: ' + message);
-    }
-  };
-  
-  const registerWithEmail = async () => {
-    const email = prompt('Enter new email:');
-    const password = prompt('Enter new password (min 6 chars):');
-  
-    if (!email || !password) {
-      alert('❌ Email and password are required.');
-      return;
-    }
-  
-    try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      alert("✅ Registered successfully. You're now logged in.");
-      localStorage.setItem('requireFreshLogin', 'false');
-      setRequireFreshLogin(false);
-      setViewMode('intro');
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      alert('❌ Registration failed: ' + message);
-    }
-  };
-  
-  if (!authChecked) {
-    return (
-      <div className="intro-screen">
-        <h1>🎯 Digital Scoresheet</h1>
-        <p className="text-center credits">made by JCTA</p>
-        <div className="flex-center">
-          <p>⏳ Checking authentication...</p>
-        </div>
-      </div>
-    );
+// --- Login & Register Functions ---
+const loginWithEmail = async (email: string, password: string) => {
+  if (!email || !password) {
+    alert('❌ Email and password are required');
+    return;
   }
 
-  if (!user || requireFreshLogin) {
-    return (
-      <div className="intro-screen">
-        <h1>🎯 Digital Scoresheet</h1>
-        <p className="text-center credits">made by JCTA</p>
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    alert('✅ Logged in successfully.');
+    localStorage.setItem('requireFreshLogin', 'false');
+    setRequireFreshLogin(false);
+    setViewMode('intro');
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    alert('❌ Login failed: ' + message);
+  }
+};
+
+const registerWithEmail = async (email: string, password: string) => {
+  if (!email || !password) {
+    alert('❌ Email and password are required.');
+    return;
+  }
+
+  if (password.length < 6) {
+    alert('❌ Password must be at least 6 characters long.');
+    return;
+  }
+
+  try {
+    await createUserWithEmailAndPassword(auth, email, password);
+    alert("✅ Registered successfully. You're now logged in.");
+    localStorage.setItem('requireFreshLogin', 'false');
+    setRequireFreshLogin(false);
+    setViewMode('intro');
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    alert('❌ Registration failed: ' + message);
+  }
+};
+
+// --- Authentication Screens ---
+if (!authChecked) {
+  return (
+    <div className="intro-screen">
+      <h1>🎯 Digital Scoresheet</h1>
+      <p className="text-center credits">made by JCTA</p>
+      <div className="flex-center">
+        <p>⏳ Checking authentication...</p>
+      </div>
+    </div>
+  );
+}
+
+if (!user || requireFreshLogin) {
+    
+  return (
+    <div className="intro-screen">
+      <h1>🎯 Digital Scoresheet</h1>
+      <p className="text-center credits">made by JCTA</p>
+      
+      {/* Login form */}
+      <div className="login-box">
+        <input
+          type="email"
+          placeholder="Email"
+          className="input-field"
+          value={loginEmail}
+          onChange={(e) => setLoginEmail(e.target.value)}
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          className="input-field"
+          value={loginPassword}
+          onChange={(e) => setLoginPassword(e.target.value)}
+        />
+
         <div className="flex-center">
-          <button className="btn-purple" onClick={loginWithEmail}>
-            🔐 Login with Email
+          <button
+            className="btn-purple"
+            onClick={() => loginWithEmail(loginEmail, loginPassword)}
+          >
+            Login with Email
           </button>
-          <button className="btn-yellow" onClick={registerWithEmail}>
-            🆕 Register New Account
+          <button
+            className="btn-yellow"
+            onClick={() => registerWithEmail(loginEmail, loginPassword)}
+          >
+             Register New Account
           </button>
         </div>
       </div>
-    );
-  }
-
+    </div>
+  );
+}
+  
 // 👇 Organizer Password Prompt
 if (viewMode === 'organizer' && !organizerView) {
   return (
