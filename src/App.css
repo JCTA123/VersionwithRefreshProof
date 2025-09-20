@@ -262,7 +262,7 @@ input.score-input {
   max-width: 100%;
   overflow-y: auto;
   animation: fadeIn 0.2s ease-out;
-  grid-template-columns: repeat(auto-fit, minmax(50px, 1fr));
+  grid-template-columns: repeat(7, 1fr); /* fixed 7 columns per row */
   pointer-events: auto;
 }
 
@@ -283,6 +283,7 @@ input.score-input {
   background: rgba(0, 123, 255, 0.7);
   transform: scale(1.05);
 }
+
 /* Buttons and top UI controls should appear above picker if needed */
 .top-bar button,
 .btn-red,
