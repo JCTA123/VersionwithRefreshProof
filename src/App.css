@@ -47,7 +47,8 @@ h1, h2, h3 {
   padding: 20px;
   margin-bottom: 20px;
   text-align: center;
-  transition: all 0.3s ease;       /* shrink/grow to fit table */
+  transition: all 0.3s ease;
+  width: fit-content;          /* shrink/grow to fit table */
   max-width: 100%;             /* never exceed viewport */
   overflow-x: auto;            /* horizontal scroll if too wide */
   display: inline-block;       /* allows width to shrink/grow */
@@ -66,17 +67,17 @@ h1, h2, h3 {
   box-shadow: 5px 6px 20px rgba(0,0,0,0.12);
   border: 1.5px solid rgba(73, 156, 230, 0.7);
   padding: 20px;
-  margin-bottom: 20px;
+  margin: 20px auto;       /* centers horizontally */
   text-align: center;
   transition: all 0.3s ease;
   
-  /* ORIGINAL FIXED LAYOUT */
-  width: 100%;           /* take full width of parent */
-  max-width: 900px;      /* optional max width */
-  display: block;        /* standard block layout */
-  overflow-x: auto;      /* scroll if table/content is too wide */
+  /* FIXED WIDTH LAYOUT WITH CENTERING */
+  width: 100%;             /* full width on small screens */
+  max-width: 900px;        /* max width for large screens */
+  display: block;
+  overflow-x: auto;        /* scroll if table/content too wide */
+  box-sizing: border-box;  /* include padding in width */
 }
-
 /* Optional: smooth scroll for horizontal overflow */
 .card::-webkit-scrollbar {
   height: 6px;
