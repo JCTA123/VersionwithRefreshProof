@@ -485,3 +485,63 @@ td .score-display.selected {
   50%  { transform: scale(1.05); opacity: 1; }
   100% { transform: scale(1); opacity: 1; }
 }
+/* Container for dropdown */
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+/* Dropdown menu hidden by default */
+.dropdown .dropdown-content {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  min-width: 180px;
+  background: rgba(25,25,35,0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(173,216,230,0.4);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 1000;
+
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-5px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  overflow: hidden;
+}
+
+/* Show when active */
+.dropdown .dropdown-content.show {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+/* Dropdown buttons */
+.dropdown .dropdown-content button {
+  padding: 10px;
+  width: 100%;
+  background: rgba(255,255,255,0.05);
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  color: #f0f0f0;
+  transition: background 0.2s ease;
+}
+
+.dropdown .dropdown-content button:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+/* Optional: main button style */
+.btn-purple {
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s ease;
+}
