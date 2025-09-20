@@ -1609,7 +1609,7 @@ if (viewMode === 'judge' && !currentJudge) {
               );
       
               return (
-                <div key={idx} className="card">
+                <div key={idx} className="card2">
                   <h2>{ev.name}</h2>
                   {!ev.submittedJudges?.includes(currentJudge) && (
                     <p

@@ -36,13 +36,9 @@ h1, h2, h3 {
 }
 
 /* === Glass Containers & Cards with subtle pastel borders === */
-.card,
-.intro-screen,
-.organizer-controls,
-.summary-table,
-.dropdown-content,
-.chat-box,
-.summary-box {
+.card2,
+.intro-screen2,
+.summary-table2 {
   background: rgba(30, 40, 80, 0.4);
   backdrop-filter: blur(14px);
   border-radius: 10px;
@@ -56,6 +52,30 @@ h1, h2, h3 {
   max-width: 100%;             /* never exceed viewport */
   overflow-x: auto;            /* horizontal scroll if too wide */
   display: inline-block;       /* allows width to shrink/grow */
+}
+/* === Glass Containers & Cards Original Layout === */
+.card,
+.intro-screen,
+.organizer-controls,
+.summary-table,
+.dropdown-content,
+.chat-box,
+.summary-box {
+  background: rgba(30, 40, 80, 0.4);
+  backdrop-filter: blur(14px);
+  border-radius: 10px;
+  box-shadow: 5px 6px 20px rgba(0,0,0,0.12);
+  border: 1.5px solid rgba(73, 156, 230, 0.7);
+  padding: 20px;
+  margin-bottom: 20px;
+  text-align: center;
+  transition: all 0.3s ease;
+  
+  /* ORIGINAL FIXED LAYOUT */
+  width: 100%;           /* take full width of parent */
+  max-width: 900px;      /* optional max width */
+  display: block;        /* standard block layout */
+  overflow-x: auto;      /* scroll if table/content is too wide */
 }
 
 /* Optional: smooth scroll for horizontal overflow */
