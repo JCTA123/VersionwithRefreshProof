@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import jsPDF from 'jspdf';
+import { createPortal } from "react-dom";
 import 'jspdf-autotable';
 declare module 'jspdf' {
   interface jsPDF {
@@ -105,6 +106,19 @@ const [loginPassword, setLoginPassword] = useState("");
     frozen: boolean;
     children: React.ReactNode; // ✅ now TS knows it accepts children
   };
+  const [openCell, setOpenCell] = useState<{
+    eventIdx: number;
+    participant: string;
+    criterion: string;
+  } | null>(null);
+  // For positioning the floating number picker
+const [pickerPosition, setPickerPosition] = useState<{
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}>({ top: 0, left: 0, width: 0, height: 0 });
+
   
   type Event = {
     name: string;
@@ -253,6 +267,15 @@ useEffect(() => {
 
   return () => unsubscribe();
 }, [frozenDocRef]);
+useEffect(() => {
+  const handleClickOutside = () => {
+    // Only close if a picker is open
+    setOpenCell(null);
+  };
+
+  document.addEventListener("click", handleClickOutside);
+  return () => document.removeEventListener("click", handleClickOutside);
+}, []); // run only once
 
 const handleFreeze = async () => {
   if (!user || !frozenDocRef) return;
@@ -1169,6 +1192,7 @@ if (viewMode === 'judge' && !currentJudge) {
     </div>
   );
 }
+
   const promptEditList = (
     title: string,
     list: string[],
@@ -1601,183 +1625,144 @@ if (viewMode === 'judge' && !currentJudge) {
                       organizer received all scores from all judges. Thank you!
                     </p>
                   )}
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Participant</th>
-                        {safeCriteria.map((c, cdx) => (
-                          <th key={cdx}>
-                            {c.name} ({c.max})
-                          </th>
-                        ))}
-                        <th>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ev.participants.map((p, pdx) => (
-                        <tr key={pdx}>
-                          <td>{p}</td>
-                          {safeCriteria.map((c, cdx) => (
-                            <td key={cdx}>
-<td key={cdx} className="score-cell">
-  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-    {/* – Button */}
-    <button
-      className="buttonn"
-      disabled={ev.submittedJudges?.includes(currentJudge)}
-      onClick={() => {
-        const current = Number(
-          tempScores?.[idx]?.[p]?.[c.name] ??
-          ev.scores?.[currentJudge]?.[p]?.[c.name] ??
-          0
-        );
-        if (current > 0) {
-          setTempScores((prev) => ({
-            ...prev,
-            [idx]: {
-              ...(prev[idx] || {}),
-              [p]: {
-                ...(prev[idx]?.[p] || {}),
-                [c.name]: String(current - 1),
-              },
-            },
-          }));
-        }
-      }}
-    >
-      -1
-    </button>
+<table>
+  <thead>
+    <tr>
+      <th>Participant</th>
+      {safeCriteria.map((c, cdx) => (
+        <th key={cdx}>{c.name} ({c.max})</th>
+      ))}
+      <th>Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {ev.participants.map((p, pdx) => (
+      <tr key={pdx}>
+        <td>{p}</td>
+        {safeCriteria.map((c, cdx) => (
+          <td key={cdx} className="score-cell">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+              {/* – Button */}
+              <button
+                className="buttonn"
+                disabled={ev.submittedJudges?.includes(currentJudge)}
+                onClick={() => {
+                  const current = Number(
+                    tempScores?.[idx]?.[p]?.[c.name] ??
+                    ev.scores?.[currentJudge]?.[p]?.[c.name] ?? 0
+                  );
+                  if (current > 0) {
+                    setTempScores(prev => ({
+                      ...prev,
+                      [idx]: {
+                        ...(prev[idx] || {}),
+                        [p]: {
+                          ...(prev[idx]?.[p] || {}),
+                          [c.name]: String(current - 1)
+                        }
+                      }
+                    }));
+                  }
+                }}
+              >-</button>
 
-    <input
-  type="number"
-  min={0}
-  max={c.max}
-  value={
-    tempScores?.[idx]?.[p]?.[c.name] ??
-    ev.scores?.[currentJudge]?.[p]?.[c.name] ??
-    ""
-  }
-  disabled={ev.submittedJudges?.includes(currentJudge)}
-  onChange={(e) => {
-    // Let user type freely but enforce range
-    const val = e.target.value;
-    if (val === "" || (!isNaN(Number(val)) && Number(val) <= c.max && Number(val) >= 0)) {
-      setTempScores((prev) => ({
-        ...prev,
-        [idx]: {
-          ...(prev[idx] || {}),
-          [p]: {
-            ...(prev[idx]?.[p] || {}),
-            [c.name]: val,
-          },
-        },
-      }));
-    }
-  }}
-  onBlur={() => {
-    // Commit when leaving the field
-    const val = tempScores?.[idx]?.[p]?.[c.name];
-    if (val !== undefined && val !== "") {
-      handleInputScore(idx, currentJudge, p, c.name, Number(val));
-    }
-  }}
-  onKeyDown={(e) => {
-    const current = Number(
-      tempScores?.[idx]?.[p]?.[c.name] ??
-      ev.scores?.[currentJudge]?.[p]?.[c.name] ??
-      0
-    );
+              {/* Score Display */}
+              <div
+                className={`score-display ${ev.submittedJudges?.includes(currentJudge) ? "disabled" : ""}`}
+                onClick={(e) => {
+                  if (ev.submittedJudges?.includes(currentJudge)) return;
+                  e.stopPropagation();
 
-    if (e.key === "Enter" || e.key === "Tab") {
-      const val = tempScores?.[idx]?.[p]?.[c.name];
-      if (val !== undefined && val !== "") {
-        handleInputScore(idx, currentJudge, p, c.name, Number(val));
-      }
-    }
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setPickerPosition({
+                    top: rect.top + window.scrollY,
+                    left: rect.left + rect.width / 2,
+                    width: rect.width,
+                    height: rect.height
+                  });
 
-    if (e.key === "ArrowUp") {
-      e.preventDefault();
-      if (current < c.max) {
-        setTempScores((prev) => ({
-          ...prev,
-          [idx]: {
-            ...(prev[idx] || {}),
-            [p]: {
-              ...(prev[idx]?.[p] || {}),
-              [c.name]: String(current + 5),
-            },
-          },
-        }));
-      }
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault();
-      if (current > 0) {
-        setTempScores((prev) => ({
-          ...prev,
-          [idx]: {
-            ...(prev[idx] || {}),
-            [p]: {
-              ...(prev[idx]?.[p] || {}),
-              [c.name]: String(current - 1),
-            },
-          },
-        }));
-      }
-    }
-  }}
-  style={{ width: "60px", textAlign: "center" }}
-/>
+                  setOpenCell({ eventIdx: idx, participant: p, criterion: c.name });
+                }}
+              >
+                {tempScores?.[idx]?.[p]?.[c.name] ??
+                 ev.scores[currentJudge]?.[p]?.[c.name] ??
+                 "-"}
+              </div>
 
-{/* + Button */}
-<button
-  className="buttonn"
-  disabled={ev.submittedJudges?.includes(currentJudge)}
-  onClick={() => {
-    const current = Number(
-      tempScores?.[idx]?.[p]?.[c.name] ??
-      ev.scores?.[currentJudge]?.[p]?.[c.name] ??
-      0
-    );
+              {/* + Button */}
+              <button
+                className="buttonn"
+                disabled={ev.submittedJudges?.includes(currentJudge)}
+                onClick={() => {
+                  const current = Number(
+                    tempScores?.[idx]?.[p]?.[c.name] ??
+                    ev.scores?.[currentJudge]?.[p]?.[c.name] ?? 0
+                  );
+                  const newScore = Math.min(current + 1, c.max);
+                  setTempScores(prev => ({
+                    ...prev,
+                    [idx]: {
+                      ...(prev[idx] || {}),
+                      [p]: {
+                        ...(prev[idx]?.[p] || {}),
+                        [c.name]: String(newScore)
+                      }
+                    }
+                  }));
+                }}
+              >+</button>
+            </div>
+          </td>
+        ))}
 
-    const newScore = Math.min(current + 5, c.max); // clamp to max
+        {/* Total Column */}
+        <td>
+          {safeCriteria.reduce((sum, c) => {
+            const draft = tempScores?.[idx]?.[p] || {};
+            const committed = ev.scores?.[currentJudge]?.[p] || {};
+            const val = draft[c.name] !== undefined && draft[c.name] !== ""
+              ? Number(draft[c.name])
+              : committed[c.name] || 0;
+            return sum + val;
+          }, 0)}
+        </td>
+      </tr>
+    ))}
+  </tbody>
 
-    setTempScores((prev) => ({
-      ...prev,
-      [idx]: {
-        ...(prev[idx] || {}),
-        [p]: {
-          ...(prev[idx]?.[p] || {}),
-          [c.name]: String(newScore),
-        },
-      },
-    }));
-  }}
->
-  +5
-</button>
-  </div>
-</td>
-                            </td>
-                          ))}
-<td>
-  {(() => {
-    const draft = tempScores?.[idx]?.[p] || {};
-    const committed = ev.scores?.[currentJudge]?.[p] || {};
+  {/* Floating Number Picker Portal */}
+  {openCell && pickerPosition &&
+    createPortal(
+      <div
+        className="number-picker dark-style"
+        style={{
+          top: pickerPosition.top - pickerPosition.height - 8,
+          left: pickerPosition.left,
+          transform: "translate(-50%, -100%)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {Array.from(
+          { length: safeCriteria.find(c => c.name === openCell.criterion)?.max ?? 10 },
+          (_, i) => i + 1
+        ).map(num => (
+          <div
+            key={num}
+            className="picker-option"
+            onClick={() => {
+              handleInputScore(openCell.eventIdx, currentJudge, openCell.participant, openCell.criterion, num);
+              setOpenCell(null);
+            }}
+          >
+            {num}
+          </div>
+        ))}
+      </div>,
+      document.body
+    )}
+</table>
 
-    return safeCriteria.reduce((sum, c) => {
-      const val = draft[c.name] !== undefined && draft[c.name] !== ""
-        ? Number(draft[c.name])
-        : committed[c.name] || 0;
-      return sum + val;
-    }, 0);
-  })()}
-</td>
 
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-      
                   {!ev.submittedJudges?.includes(currentJudge) ? (
                     <button
                     className="btn-green"

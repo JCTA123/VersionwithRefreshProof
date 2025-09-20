@@ -47,11 +47,20 @@ h1, h2, h3 {
   backdrop-filter: blur(14px);
   border-radius: 10px;
   box-shadow: 5px 6px 20px rgba(0,0,0,0.12);
-  border: 1.5px solid rgba(073,516,430,7.4); /* thin pastel border */
+  border: 1.5px solid rgba(73, 156, 230, 0.7); /* fixed invalid rgba */
   padding: 20px;
   margin-bottom: 20px;
   text-align: center;
   transition: all 0.3s ease;
+  width: fit-content;          /* shrink/grow to fit table */
+  max-width: 100%;             /* never exceed viewport */
+  overflow-x: auto;            /* horizontal scroll if too wide */
+  display: inline-block;       /* allows width to shrink/grow */
+}
+
+/* Optional: smooth scroll for horizontal overflow */
+.card::-webkit-scrollbar {
+  height: 6px;
 }
 
 /* Cards Hover */
@@ -73,7 +82,7 @@ h1, h2, h3 {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* === Unified Input & Select Styling (like chat input) === */
+/* === Unified Input & Select Styling === */
 input[type='text'],
 input[type='password'],
 input[type='number'],
@@ -81,7 +90,7 @@ select,
 textarea,
 .intro-screen input {
   width: 100%;
-  padding: 12px 16px; /* like chat input */
+  padding: 12px 16px;
   margin: 12px 0;
   border-radius: 10px;
   border: 1px solid rgba(173,216,230,0.4);
@@ -109,18 +118,6 @@ textarea::placeholder {
   font-style: italic;
 }
 
-/* Table number inputs (compact) */
-td input[type='number'] {
-  min-width: 60px;
-  max-width: 80px;
-  width: 100%;
-  padding: 8px;
-  margin: 0;
-  font-size: 14px;
-  box-sizing: border-box;
-  text-align: center;
-}
-
 /* === Buttons === */
 button {
   padding: 10px 16px;
@@ -145,40 +142,24 @@ button {
   backdrop-filter: blur(10px);
   transition: all 0.3s ease;
   border: 1px solid rgba(255,255,255,0.08);
+  position: relative;   /* ensures stacking context */
+  z-index: 1;
 }
 
 button:hover {
   transform: scale(1.05);
   background: rgba(255,255,255,0.12);
 }
+
 /* === Button Colors (Transparent & Shiny) === */
-.btn-blue {
-  background: rgba(41, 128, 185, 0.10);
-  backdrop-filter: blur(6px);
-  box-shadow: inset 0 2px 6px rgba(255,255,255,0.15);
-}
-.btn-green {
-  background: rgba(39, 174, 96, 0.10);
-  backdrop-filter: blur(6px);
-  box-shadow: inset 0 2px 6px rgba(255,255,255,0.15);
-}
-.btn-yellow {
-  background: rgba(241, 196, 15, 0.10);
-  backdrop-filter: blur(6px);
-  box-shadow: inset 0 2px 6px rgba(255,255,255,0.15);
-}
-.btn-purple {
-  background: rgba(142, 68, 173, 0.10);
-  backdrop-filter: blur(6px);
-  box-shadow: inset 0 2px 6px rgba(255,255,255,0.15);
-}
-.btn-red {
-  background: rgba(192, 57, 43, 0.10);
-  backdrop-filter: blur(6px);
-  box-shadow: inset 0 2px 6px rgba(255,255,255,0.15);
-}
-.btn-gray {
-  background: rgba(127, 140, 141, 0.10);
+.btn-blue   { background: rgba(41, 128, 185, 0.10); }
+.btn-green  { background: rgba(39, 174, 96, 0.10); }
+.btn-yellow { background: rgba(241, 196, 15, 0.10); }
+.btn-purple { background: rgba(142, 68, 173, 0.10); }
+.btn-red    { background: rgba(192, 57, 43, 0.10); }
+.btn-gray   { background: rgba(127, 140, 141, 0.10); }
+
+.btn-blue, .btn-green, .btn-yellow, .btn-purple, .btn-red, .btn-gray {
   backdrop-filter: blur(6px);
   box-shadow: inset 0 2px 6px rgba(255,255,255,0.15);
 }
@@ -213,7 +194,7 @@ table {
   border-collapse: collapse;
   margin-top: 15px;
   border-radius: 10px;
-  overflow: hidden;
+  overflow: visible !important; /* allow dropdown escape */
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(173,216,230,0.4);
@@ -224,8 +205,72 @@ th, td {
   padding: 10px;
   text-align: center;
   color: aliceblue;
+  position: relative; /* ensures dropdown aligns properly */
+  overflow: visible !important;
 }
 
+/* Compact number inputs inside tables */
+td input[type='number'], 
+input.score-input {
+  min-width: 60px;
+  max-width: 80px;
+  width: 100%;
+  padding: 8px;
+  margin: 0;
+  font-size: 14px;
+  text-align: center;
+  border: none;
+  outline: none;
+  background: rgba(255,255,255,0.05);
+  color: #fff;
+}
+.number-picker.dark-style {
+  position: fixed;
+  top: 0;  /* overridden by JS */
+  left: 0; /* overridden by JS */
+  transform: translate(-50%, -100%); /* center horizontally above the cell */
+  background: rgba(25, 25, 25, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  z-index: 99999;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+  max-height: 250%;
+  width: fit-content;
+  max-width: 100%;
+  overflow-y: auto;
+  animation: fadeIn 0.2s ease-out;
+  grid-template-columns: repeat(auto-fit, minmax(50px, 1fr));
+  pointer-events: auto;
+}
+
+/* Picker options */
+.picker-option, .number-option {
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.picker-option:hover, .number-option:hover {
+  background: rgba(0, 123, 255, 0.7);
+  transform: scale(1.05);
+}
+/* Buttons and top UI controls should appear above picker if needed */
+.top-bar button,
+.btn-red,
+.btn-purple,
+.chat-toggle {
+  position: relative;
+  z-index: 100;
+}
 /* === Chat === */
 .chat-toggle {
   background: rgba(20, 20, 30, 0.4);
@@ -291,7 +336,7 @@ th, td {
 .rank-2 td { background: rgba(192, 192, 192, 0.2); }
 .rank-3 td { background: rgba(205, 127, 50, 0.2); }
 
-/* === Export Dropdown Styles (fixed to work with .show) === */
+/* === Export Dropdown Styles === */
 .dropdown-export {
   position: relative;
   display: inline-block;
@@ -337,7 +382,7 @@ th, td {
   background: rgba(255,255,255,0.08);
 }
 
-/* Layout Helpers */
+/* === Layout Helpers === */
 .flex-center {
   display: flex;
   gap: 12px;
@@ -372,12 +417,51 @@ th, td {
   color: #888;
   margin-top: 2rem;
 }
-.dropdown-content button { padding: 10px; width: 100%; background: rgba(255,255,255,0.1); border: none; text-align: left; cursor: pointer; font-size: 14px; } .dropdown-content button:hover { background: rgba(255,255,255,0.1); } .dropdown:hover .dropdown-content { display: block; }
-/* 🔽 Export Dropdown Styles */ .dropdown { position: relative; display: inline-block; } .dropdown-content { display: none; position: absolute; background: rgba(255,255,255,0.1); min-width: 220px; box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2); z-index: 1000; border-radius: 8px; overflow: hidden; }
+/* === Table cells (score display) === */
+td .score-display {
+  width: 60px;
+  height: 32px;
+  border: 1px solid #ccc; /* retain table cell borders */
+  border-radius: 6px;
+  text-align: center;
+  line-height: 32px;
+  cursor: pointer;
+  background: rgba(255,255,255,0.05);
+  color: #fff;
+  font-weight: 600;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+  position: relative;
+  user-select: none;
+}
 
-/* Center all score cells inside the table */
-.score-cell {
-  display: flex;
-  justify-content: center;  /* horizontal center */
-  align-items: center;      /* vertical center */
+/* Disabled cells (after submission) */
+td .score-display.disabled {
+  background: rgba(245, 245, 245, 0.2);
+  cursor: not-allowed;
+  color: #888;
+}
+
+/* Hover effect for editable cells */
+td .score-display:not(.disabled):hover {
+  background: rgba(0, 123, 255, 0.2);
+  box-shadow: 0 0 8px rgba(0,123,255,0.5);
+}
+
+/* Selected number highlight (after picking from floating picker) */
+td .score-display.selected {
+  background: rgba(0, 123, 255, 0.6);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 0 12px rgba(0,123,255,0.7);
+}
+
+/* Optional: Animate when number changes */
+td .score-display.selected {
+  animation: highlightPicked 0.3s ease;
+}
+
+@keyframes highlightPicked {
+  0%   { transform: scale(0.9); opacity: 0.7; }
+  50%  { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
 }
