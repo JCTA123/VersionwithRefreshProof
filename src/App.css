@@ -47,8 +47,7 @@ h1, h2, h3 {
   padding: 20px;
   margin-bottom: 20px;
   text-align: center;
-  transition: all 0.3s ease;
-  width: fit-content;          /* shrink/grow to fit table */
+  transition: all 0.3s ease;       /* shrink/grow to fit table */
   max-width: 100%;             /* never exceed viewport */
   overflow-x: auto;            /* horizontal scroll if too wide */
   display: inline-block;       /* allows width to shrink/grow */
