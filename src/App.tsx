@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 declare module 'jspdf' {
@@ -91,6 +91,30 @@ const [tempScores, setTempScores] = useState<{
     };
   };
 }>({});
+const [activeCell, setActiveCell] = useState<{
+  eventIdx: number;
+  participant: string;
+  criterion: string;
+  max: number;
+} | null>(null);
+
+// Track which cell is open for the number picker
+const [openCell, setOpenCell] = useState<{
+  eventIdx: number;
+  participant: string;
+  criterion: string;
+} | null>(null);const pickerRef = useRef<HTMLDivElement | null>(null);
+// Close picker on outside click
+useEffect(() => {
+  function handleClickOutside(e: MouseEvent) {
+    if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+      setOpenCell(null);
+    }
+  }
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => document.removeEventListener("mousedown", handleClickOutside);
+}, []);
+
     const [twoPhaseVisibility, setTwoPhaseVisibility] = useState<{
     [baseName: string]: boolean;
   }>(() => {
@@ -106,7 +130,7 @@ const [tempScores, setTempScores] = useState<{
     frozen: boolean;
     children: React.ReactNode; // ✅ now TS knows it accepts children
   };
-  
+
   type Event = {
     name: string;
     participants: string[];
@@ -1610,142 +1634,141 @@ if (viewMode === 'judge' && !currentJudge) {
                               organizer received all scores from all judges. Thank you!
                             </p>
                           )}
-                          <table>
-                            <thead>
-                              <tr>
-                                <th>Participant</th>
-                                {safeCriteria.map((c, cdx) => (
-                                  <th key={cdx}>
-                                    {c.name} ({c.max})
-                                  </th>
-                                ))}
-                                <th>Total</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {ev.participants.map((p, pdx) => (
-                                <tr key={pdx}>
-                                  <td>{p}</td>
-                                  {safeCriteria.map((c, cdx) => (
-                                    <td key={cdx}>
-        <td key={cdx} className="score-cell">
-          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-            {/* – Button */}
-            <button
-              className="buttonn"
-              disabled={ev.submittedJudges?.includes(currentJudge)}
-              onClick={() => {
-                const current = Number(
-                  tempScores?.[idx]?.[p]?.[c.name] ??
-                  ev.scores?.[currentJudge]?.[p]?.[c.name] ??
-                  0
-                );
-                if (current > 0) {
-                  setTempScores((prev) => ({
-                    ...prev,
-                    [idx]: {
-                      ...(prev[idx] || {}),
-                      [p]: {
-                        ...(prev[idx]?.[p] || {}),
-                        [c.name]: String(current - 1),
-                      },
-                    },
-                  }));
-                }
-              }}
-            >
-              -1
-            </button>
-        
-            <input
-          type="number"
-          min={0}
-          max={c.max}
-          value={tempScores?.[idx]?.[p]?.[c.name] ?? ""} // ✅ Only tempScores, never ev.scores
-          disabled={ev.submittedJudges?.includes(currentJudge)}
-          onChange={(e) => {
-            const val = e.target.value;
-            // Allow typing freely but enforce only valid numbers
-            if (val === "" || (!isNaN(Number(val)) && Number(val) <= c.max && Number(val) >= 0)) {
-              setTempScores((prev) => ({
-                ...prev,
-                [idx]: {
-                  ...(prev[idx] || {}),
-                  [p]: {
-                    ...(prev[idx]?.[p] || {}),
-                    [c.name]: val, // keep as string for typing
-                  },
-                },
-              }));
-            }
-          }}
-          onBlur={() => {
-            const val = tempScores?.[idx]?.[p]?.[c.name];
-            if (val !== undefined && val !== "") {
-              handleInputScore(idx, currentJudge, p, c.name, Number(val)); // ✅ commit here
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === "Tab") {
-              const val = tempScores?.[idx]?.[p]?.[c.name];
-              if (val !== undefined && val !== "") {
-                handleInputScore(idx, currentJudge, p, c.name, Number(val));
-              }
-            }
-          }}
-          style={{ width: "60px", textAlign: "center" }}
-        />
-        
-        {/* + Button */}
-        <button
-          className="buttonn"
-          disabled={ev.submittedJudges?.includes(currentJudge)}
-          onClick={() => {
-            const current = Number(
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ textAlign: "center" }}>Participant</th>
+      {safeCriteria.map((c, cdx) => (
+        <th key={cdx} style={{ textAlign: "center" }}>
+          {c.name} ({c.max})
+        </th>
+      ))}
+      <th style={{ textAlign: "center" }}>Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {ev.participants.map((p, pdx) => (
+      <tr key={pdx}>
+        <td style={{ textAlign: "center" }}>{p}</td>
+        {safeCriteria.map((c, cdx) => {
+          const current =
+            Number(
               tempScores?.[idx]?.[p]?.[c.name] ??
-              ev.scores?.[currentJudge]?.[p]?.[c.name] ??
-              0
+                ev.scores?.[currentJudge]?.[p]?.[c.name] ??
+                0
             );
-        
-            const newScore = Math.min(current + 5, c.max); // clamp to max
-        
-            setTempScores((prev) => ({
-              ...prev,
-              [idx]: {
-                ...(prev[idx] || {}),
-                [p]: {
-                  ...(prev[idx]?.[p] || {}),
-                  [c.name]: String(newScore),
-                },
-              },
-            }));
-          }}
-        >
-          +5
-        </button>
-          </div>
-        </td>
-                                    </td>
-                                  ))}
-        <td>
+
+          return (
+            <td
+              key={cdx}
+              className="score-cell"
+              style={{ textAlign: "center", verticalAlign: "middle" }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                }}
+              >
+                {/* – Button */}
+                <button
+                  className="buttonn"
+                  disabled={ev.submittedJudges?.includes(currentJudge)}
+                  onClick={() => {
+                    if (current > 0) {
+                      const newScore = Math.max(current - 1, 0);
+                      setTempScores((prev) => ({
+                        ...prev,
+                        [idx]: {
+                          ...(prev[idx] || {}),
+                          [p]: {
+                            ...(prev[idx]?.[p] || {}),
+                            [c.name]: String(newScore),
+                          },
+                        },
+                      }));
+                      handleInputScore(idx, currentJudge, p, c.name, newScore);
+                    }
+                  }}
+                >
+                  -
+                </button>
+
+                {/* Score display (click → global picker) */}
+                <span
+                  className="score-display"
+                  onClick={() => {
+                    if (!ev.submittedJudges?.includes(currentJudge)) {
+                      setActiveCell({
+                        eventIdx: idx,
+                        participant: p,
+                        criterion: c.name,
+                        max: c.max,
+                      });
+                    }
+                  }}
+                  style={{
+                    width: "60px",
+                    textAlign: "center",
+                    cursor: "pointer",
+                    background: "#222",
+                    borderRadius: "6px",
+                    padding: "4px 0",
+                    color: "#fff",
+                  }}
+                >
+                  {current}
+                </span>
+
+                {/* + Button */}
+                <button
+                  className="buttonn"
+                  disabled={ev.submittedJudges?.includes(currentJudge)}
+                  onClick={() => {
+                    const newScore = Math.min(current + 1, c.max);
+                    setTempScores((prev) => ({
+                      ...prev,
+                      [idx]: {
+                        ...(prev[idx] || {}),
+                        [p]: {
+                          ...(prev[idx]?.[p] || {}),
+                          [c.name]: String(newScore),
+                        },
+                      },
+                    }));
+                    handleInputScore(idx, currentJudge, p, c.name, newScore);
+                  }}
+                >
+                  +
+                </button>
+              </div>
+            </td>
+          );
+        })}
+
+        {/* Total column */}
+        <td style={{ textAlign: "center" }}>
           {(() => {
             const draft = tempScores?.[idx]?.[p] || {};
             const committed = ev.scores?.[currentJudge]?.[p] || {};
-        
             return safeCriteria.reduce((sum, c) => {
-              const val = draft[c.name] !== undefined && draft[c.name] !== ""
-                ? Number(draft[c.name])
-                : committed[c.name] || 0;
+              const val =
+                draft[c.name] !== undefined && draft[c.name] !== ""
+                  ? Number(draft[c.name])
+                  : committed[c.name] || 0;
               return sum + val;
             }, 0);
           })()}
         </td>
-        
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-              
+      </tr>
+    ))}
+  </tbody>
+</table>
+
+
                           {!ev.submittedJudges?.includes(currentJudge) ? (
                             <button
                             className="btn-green"
@@ -1831,6 +1854,43 @@ if (viewMode === 'judge' && !currentJudge) {
               </>
               )}      
             </div>
+            {activeCell && (
+  <div className="number-picker-panel">
+    <h4 style={{ marginBottom: "8px", color: "#fff" }}>
+      {activeCell.criterion} (max {activeCell.max})
+    </h4>
+    <div className="number-grid">
+      {Array.from({ length: activeCell.max || 10 }, (_, i) => i + 1).map((num) => (
+        <div
+          key={num}
+          className="picker-option"
+          onClick={() => {
+            setTempScores((prev) => ({
+              ...prev,
+              [activeCell.eventIdx]: {
+                ...(prev[activeCell.eventIdx] || {}),
+                [activeCell.participant]: {
+                  ...(prev[activeCell.eventIdx]?.[activeCell.participant] || {}),
+                  [activeCell.criterion]: String(num),
+                },
+              },
+            }));
+            handleInputScore(
+              activeCell.eventIdx,
+              currentJudge,
+              activeCell.participant,
+              activeCell.criterion,
+              num
+            );
+          }}
+        >
+          {num}
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+
             </DisabledWrapper>
                   {/* Chat Section */}
                   <div className="chat-box">

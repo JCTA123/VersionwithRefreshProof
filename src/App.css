@@ -579,92 +579,71 @@ td .score-display.selected {
   to   { opacity: 1; transform: translate(-50%, -100%); }
 }
 
-/* Each number button */
-.picker-option,
-.number-option {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 44px;
-  min-height: 40px;
-  padding: 8px 6px;
-  border-radius: 8px;
-  cursor: pointer;
-  user-select: none;
-  font-weight: 700;
-  font-size: 14px;
-  color: #ffffff;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.04);
-  transition: background 120ms ease, transform 80ms ease, box-shadow 120ms ease;
-  box-sizing: border-box;
+/* === Number Picker Panel (container) === */
+.number-picker-panel {
+  align-self: center;
+  margin-top: 0;
+  margin-right: 1rem;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  background: rgba(10, 20, 50, 0.9); /* dark bluish background */
+  border: 1px solid rgba(65, 105, 225, 0.8); /* royal blue light border */  
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  color: #fff;
+  max-width: auto; /* limit width */
+  width: 96%;
+}
+.number-picker-panel h4 {
+  margin: 0 0 0.2rem 0; /* top 0, bottom 0.5rem */
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
 }
 
-/* Hover / focus / active states */
-.picker-option:hover,
-.picker-option:focus {
-  background: rgba(0,123,255,0.12);
+/* === Number Grid (7 columns per row) === */
+.number-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr); /* always 7 columns */
+  gap: 1.6rem;
+  justify-items: center;
+  align-items: center;
+  margin-top: 0.2rem;
+  row-gap: 0.2rem;
+  width: auto;
+}
+
+/* === Individual Number Option === */
+.picker-option {
+  font-family: 'Lexend', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  width: 100%; /* fill grid cell */
+  text-align: center;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+/* Hover and active */
+.picker-option:hover {
+  background: rgba(255, 255, 255, 0.25);
   transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(0,123,255,0.12);
-  outline: none;
 }
 
 .picker-option:active {
-  transform: translateY(0);
-  background: rgba(0,123,255,0.18);
+  background: rgba(255, 255, 255, 0.35);
+  transform: scale(0.95);
 }
 
-/* Selected/Chosen number style (apply .selected when appropriate) */
+/* === Selected state === */
 .picker-option.selected {
-  background: rgba(0,123,255,0.9);
-  color: #fff;
-  box-shadow: 0 8px 26px rgba(0,123,255,0.35);
-}
-
-/* Disabled look (if you ever disable options) */
-.picker-option.disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* Respect keyboard focus (accessibility) */
-.picker-option:focus-visible {
-  outline: 2px solid rgba(129,236,236,0.6);
-  outline-offset: 2px;
-}
-
-/* Scrollbar styling (WebKit) */
-.number-picker.dark-style::-webkit-scrollbar {
-  width: 10px;
-}
-.number-picker.dark-style::-webkit-scrollbar-track {
-  background: rgba(255,255,255,0.02);
-  border-radius: 8px;
-}
-.number-picker.dark-style::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.06);
-  border-radius: 8px;
-  border: 2px solid rgba(0,0,0,0.0);
-}
-
-/* Responsive: fewer columns on smaller screens */
-@media (max-width: 1000px) {
-  .number-picker.dark-style { grid-template-columns: repeat(5, minmax(44px, 1fr)); }
-}
-@media (max-width: 740px) {
-  .number-picker.dark-style { grid-template-columns: repeat(4, minmax(44px, 1fr)); }
-}
-@media (max-width: 520px) {
-  .number-picker.dark-style { grid-template-columns: repeat(3, minmax(40px, 1fr)); padding: 10px; gap: 6px; }
-}
-@media (max-width: 360px) {
-  .number-picker.dark-style { grid-template-columns: repeat(2, minmax(36px, 1fr)); padding: 8px; gap: 6px; }
-}
-
-/* Prevent the picker from being clipped by transform-creating parents if you ever embed it:
-   (not strictly necessary when using createPortal to document.body, but harmless) */
-.number-picker.dark-style,
-.number-picker.dark-style * {
-  transform-style: preserve-3d;
+  background: linear-gradient(135deg, #4facfe, #00f2fe);
+  color: #111;
+  font-weight: 600;
 }
