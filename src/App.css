@@ -647,3 +647,15 @@ td .score-display.selected {
   color: #111;
   font-weight: 600;
 }
+/* Disabled state for number picker panel */
+.number-picker-panel.disabled {
+  opacity: 0.5;
+  pointer-events: none; /* prevent any clicks */
+}
+
+/* Disabled state for individual numbers */
+.picker-option.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}

@@ -91,12 +91,7 @@ const [tempScores, setTempScores] = useState<{
     };
   };
 }>({});
-const [activeCell, setActiveCell] = useState<{
-  eventIdx: number;
-  participant: string;
-  criterion: string;
-  max: number;
-} | null>(null);
+const [activeCell, setActiveCell] = useState<ActiveCell | null>(null);
 
 // Track which cell is open for the number picker
 const [openCell, setOpenCell] = useState<{
@@ -235,6 +230,13 @@ useEffect(() => {
     );
   }
 }, [weights]);
+
+useEffect(() => {
+  if (activeCell?.submitted) {
+    setActiveCell(null); // auto-hide picker if that cell is already submitted
+  }
+}, [activeCell]);
+
 
 // === Persist weights to Firestore ===
 useEffect(() => {
@@ -479,6 +481,9 @@ const saveWeights = async (baseName: string, phaseWeights: { phase1: number; pha
     };
   
     updateEvent(idx, updatedEvent);
+      // Auto-hide number picker after submission
+  setActiveCell(null);
+
   };
       
   const handleSendMessage = () => {
@@ -728,6 +733,17 @@ const saveWeights = async (baseName: string, phaseWeights: { phase1: number; pha
     name: string;
     avg: number;
   };
+
+  type ActiveCell = {
+    eventIdx: number;
+    participant: string;
+    criterion: string;
+    max: number;
+    value: number;
+    submitted: boolean;
+  } | null;
+  
+
   const getTwoPhaseGroups = () => {
     const grouped: { [key: string]: { phase1?: Event; phase2?: Event } } = {};
   
@@ -1658,7 +1674,10 @@ if (viewMode === 'judge' && !currentJudge) {
                 ev.scores?.[currentJudge]?.[p]?.[c.name] ??
                 0
             );
+            const isSubmitted = ev.submittedJudges?.includes(currentJudge) ?? false;
 
+
+          
           return (
             <td
               key={cdx}
@@ -1676,9 +1695,9 @@ if (viewMode === 'judge' && !currentJudge) {
                 {/* – Button */}
                 <button
                   className="buttonn"
-                  disabled={ev.submittedJudges?.includes(currentJudge)}
+                  disabled={isSubmitted}
                   onClick={() => {
-                    if (current > 0) {
+                    if (!isSubmitted && current > 0) {
                       const newScore = Math.max(current - 1, 0);
                       setTempScores((prev) => ({
                         ...prev,
@@ -1697,49 +1716,57 @@ if (viewMode === 'judge' && !currentJudge) {
                   -
                 </button>
 
-                {/* Score display (click → global picker) */}
-                <span
-                  className="score-display"
-                  onClick={() => {
-                    if (!ev.submittedJudges?.includes(currentJudge)) {
-                      setActiveCell({
-                        eventIdx: idx,
-                        participant: p,
-                        criterion: c.name,
-                        max: c.max,
-                      });
-                    }
-                  }}
-                  style={{
-                    width: "60px",
-                    textAlign: "center",
-                    cursor: "pointer",
-                    background: "#222",
-                    borderRadius: "6px",
-                    padding: "4px 0",
-                    color: "#fff",
-                  }}
-                >
-                  {current}
-                </span>
+{/* Score display (click → global picker) */}
+<span
+  className={`score-display ${isSubmitted ? "disabled" : ""}`}
+  onClick={() => {
+    if (!isSubmitted) {
+      setActiveCell({
+        eventIdx: idx,
+        participant: p,
+        criterion: c.name,
+        max: c.max,
+        value: Number(
+          tempScores?.[idx]?.[p]?.[c.name] ??
+          ev.scores?.[currentJudge]?.[p]?.[c.name] ??
+          0
+        ),
+        submitted: isSubmitted, // boolean
+      });
+    }
+  }}
+  style={{
+    width: "60px",
+    textAlign: "center",
+    cursor: isSubmitted ? "not-allowed" : "pointer",
+    background: "#222",
+    borderRadius: "6px",
+    padding: "4px 0",
+    color: "#fff",
+  }}
+>
+  {current}
+</span>
 
                 {/* + Button */}
                 <button
                   className="buttonn"
-                  disabled={ev.submittedJudges?.includes(currentJudge)}
+                  disabled={isSubmitted}
                   onClick={() => {
-                    const newScore = Math.min(current + 1, c.max);
-                    setTempScores((prev) => ({
-                      ...prev,
-                      [idx]: {
-                        ...(prev[idx] || {}),
-                        [p]: {
-                          ...(prev[idx]?.[p] || {}),
-                          [c.name]: String(newScore),
+                    if (!isSubmitted) {
+                      const newScore = Math.min(current + 1, c.max);
+                      setTempScores((prev) => ({
+                        ...prev,
+                        [idx]: {
+                          ...(prev[idx] || {}),
+                          [p]: {
+                            ...(prev[idx]?.[p] || {}),
+                            [c.name]: String(newScore),
+                          },
                         },
-                      },
-                    }));
-                    handleInputScore(idx, currentJudge, p, c.name, newScore);
+                      }));
+                      handleInputScore(idx, currentJudge, p, c.name, newScore);
+                    }
                   }}
                 >
                   +
@@ -1854,7 +1881,8 @@ if (viewMode === 'judge' && !currentJudge) {
               </>
               )}      
             </div>
-            {activeCell && (
+
+{activeCell && (
   <div className="number-picker-panel">
     <h4 style={{ marginBottom: "8px", color: "#fff" }}>
       {activeCell.criterion} (max {activeCell.max})
@@ -1865,23 +1893,26 @@ if (viewMode === 'judge' && !currentJudge) {
           key={num}
           className="picker-option"
           onClick={() => {
-            setTempScores((prev) => ({
-              ...prev,
-              [activeCell.eventIdx]: {
-                ...(prev[activeCell.eventIdx] || {}),
-                [activeCell.participant]: {
-                  ...(prev[activeCell.eventIdx]?.[activeCell.participant] || {}),
-                  [activeCell.criterion]: String(num),
+            // Extra safety: prevent clicking if submitted
+            if (!activeCell.submitted) {
+              setTempScores((prev) => ({
+                ...prev,
+                [activeCell.eventIdx]: {
+                  ...(prev[activeCell.eventIdx] || {}),
+                  [activeCell.participant]: {
+                    ...(prev[activeCell.eventIdx]?.[activeCell.participant] || {}),
+                    [activeCell.criterion]: String(num),
+                  },
                 },
-              },
-            }));
-            handleInputScore(
-              activeCell.eventIdx,
-              currentJudge,
-              activeCell.participant,
-              activeCell.criterion,
-              num
-            );
+              }));
+              handleInputScore(
+                activeCell.eventIdx,
+                currentJudge,
+                activeCell.participant,
+                activeCell.criterion,
+                num
+              );
+            }
           }}
         >
           {num}
@@ -1890,7 +1921,6 @@ if (viewMode === 'judge' && !currentJudge) {
     </div>
   </div>
 )}
-
             </DisabledWrapper>
                   {/* Chat Section */}
                   <div className="chat-box">
