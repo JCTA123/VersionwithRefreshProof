@@ -83,13 +83,14 @@ const [loginPassword, setLoginPassword] = useState("");
     const saved = localStorage.getItem('requireFreshLogin');
     return saved === 'false' ? false : true;
   });
-  const [tempScores, setTempScores] = useState<{
-    [eventIdx: string]: {
-      [participant: string]: {
-        [criterion: string]: string | number;
-      };
+// Fix typing: eventIdx is a number, not string
+const [tempScores, setTempScores] = useState<{
+  [eventIdx: number]: {
+    [participant: string]: {
+      [criterion: string]: string;  // keep raw string while typing
     };
-  }>({});
+  };
+}>({});
     const [twoPhaseVisibility, setTwoPhaseVisibility] = useState<{
     [baseName: string]: boolean;
   }>(() => {
@@ -407,11 +408,11 @@ const saveWeights = async (baseName: string, phaseWeights: { phase1: number; pha
   
     updateEvent(idx, { ...ev, scores: newScores });
   };
-    
   const handleSubmitScores = (idx: number) => {
     const ev = events[idx];
     const updatedSubmitted = [...(ev.submittedJudges || []), currentJudge];
   
+    // Prepare scores object to push into event
     const scoresToPush: {
       [judge: string]: {
         [participant: string]: {
@@ -420,24 +421,33 @@ const saveWeights = async (baseName: string, phaseWeights: { phase1: number; pha
       };
     } = { ...ev.scores };
   
-    const temp = tempScores?.[idx.toString()] || {}; // 🔧 Cast index to string if needed
+    // 🔧 Explicitly type eventTemp so TS knows the structure
+    const eventTemp: {
+      [participant: string]: {
+        [criterion: string]: string | number;
+      };
+    } = tempScores?.[idx] || {};
   
-    Object.keys(temp).forEach((participant) => {
-      const participantScores = temp[participant];
+    // Walk through all temp scores
+    Object.keys(eventTemp).forEach((participant) => {
+      const participantScores = eventTemp[participant] || {};
+  
       Object.keys(participantScores).forEach((crit) => {
         const raw = participantScores[crit];
         const parsed = Number(raw);
   
         if (!scoresToPush[currentJudge]) scoresToPush[currentJudge] = {};
-        if (!scoresToPush[currentJudge][participant])
+        if (!scoresToPush[currentJudge][participant]) {
           scoresToPush[currentJudge][participant] = {};
+        }
   
         scoresToPush[currentJudge][participant][crit] = isNaN(parsed)
           ? 0
-          : parsed; // ✅ Ensure value is a number
+          : parsed;
       });
     });
   
+    // Update event with new scores + submitted judges
     const updatedEvent: Event = {
       ...ev,
       scores: scoresToPush,
@@ -446,7 +456,7 @@ const saveWeights = async (baseName: string, phaseWeights: { phase1: number; pha
   
     updateEvent(idx, updatedEvent);
   };
-  
+      
   const handleSendMessage = () => {
     if (newMessage.trim()) {
       const updatedMessages = [
@@ -483,7 +493,6 @@ const saveWeights = async (baseName: string, phaseWeights: { phase1: number; pha
       alert('Password updated.');
     }
   };
-
   const handleJudgeLogin = () => {
     if (!judgeCodes.includes(codeInput.trim())) {
       alert('Invalid code');
@@ -1000,7 +1009,7 @@ const saveWeights = async (baseName: string, phaseWeights: { phase1: number; pha
 
     doc.save(`${ev.name.replace(/\s+/g, '_')}_summary.pdf`);
   };
-// --- Login & Register Functions ---
+  // --- Login & Register Functions ---
 const loginWithEmail = async (email: string, password: string) => {
   if (!email || !password) {
     alert('❌ Email and password are required');
@@ -1107,7 +1116,7 @@ if (viewMode === 'organizer' && !organizerView) {
         type="password"
         value={orgPasswordInput}
         onChange={(e) => setOrgPasswordInput(e.target.value)}
-        placeholder="Enter password (Default: JCTA123)"
+        placeholder="Enter organizer password (Default: JCTA123)"
       />
       <br />
       <button className="btn-blue" onClick={handleOrganizerLogin}>
@@ -1543,374 +1552,333 @@ if (viewMode === 'judge' && !currentJudge) {
               );
             })
           )}
-        </>
-      ) : (// --- Judge View Rendering ---
-      <>
-        <div className="top-bar">
-          <h1>🎯 Digital Scoresheet</h1>
-          <p className="text-center credits">made by JCTA</p>
-          <button className="btn-gray" onClick={refreshAllData}>
-            🔄 Refresh Data
-          </button>
-        </div>
-      
-        {visibleJudgeEvents.length === 0 ? (
-          <p
-            style={{
-              textAlign: 'center',
-              marginTop: '60px',
-              fontSize: '18px',
-              fontWeight: 'bold',
-              color: '#444',
-            }}
-          >
-            There's no assigned events yet. Please wait for the organizer.
-            Thank you!
-          </p>
-        ) : (
-          <>
-            {/* --- Single-Phase Events Rendering --- */}
-            {visibleJudgeEvents.map((ev, idx) => {
-              const safeCriteria = ev.criteria.map(
-                (c: string | { name: string; max: number }) => {
-                  if (typeof c === 'string') {
-                    const match = c.match(/^(.*?)(?:\s*\((\d+)\))?$/);
-                    return {
-                      name: match?.[1]?.trim() || c,
-                      max: match?.[2] ? parseInt(match[2]) : 10,
-                    };
-                  }
-                  return c;
-                }
-              );
-      
-              return (
-                <div key={idx} className="card">
-                  <h2>{ev.name}</h2>
-                  {!ev.submittedJudges?.includes(currentJudge) && (
-                    <p
-                      style={{
-                        color: 'red',
-                        fontWeight: 'bold',
-                        textAlign: 'center',
-                        marginBottom: '10px',
-                      }}
-                    >
-                      Important: After submitting, you can view the scores but you
-                      cannot change it. Final ranking will be shown after the
-                      organizer received all scores from all judges. Thank you!
-                    </p>
-                  )}
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Participant</th>
-                        {safeCriteria.map((c, cdx) => (
-                          <th key={cdx}>
-                            {c.name} ({c.max})
-                          </th>
-                        ))}
-                        <th>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ev.participants.map((p, pdx) => (
-                        <tr key={pdx}>
-                          <td>{p}</td>
-                          {safeCriteria.map((c, cdx) => (
-                            <td key={cdx}>
-<td key={cdx} className="score-cell">
-  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-    {/* – Button */}
-    <button
-      className="buttonn"
-      disabled={ev.submittedJudges?.includes(currentJudge)}
-      onClick={() => {
-        const current = Number(
-          tempScores?.[idx]?.[p]?.[c.name] ??
-          ev.scores?.[currentJudge]?.[p]?.[c.name] ??
-          0
-        );
-        if (current > 0) {
-          setTempScores((prev) => ({
-            ...prev,
-            [idx]: {
-              ...(prev[idx] || {}),
-              [p]: {
-                ...(prev[idx]?.[p] || {}),
-                [c.name]: String(current - 1),
-              },
-            },
-          }));
-        }
-      }}
-    >
-      -1
-    </button>
-
-    <input
-  type="number"
-  min={0}
-  max={c.max}
-  value={
-    tempScores?.[idx]?.[p]?.[c.name] ??
-    ev.scores?.[currentJudge]?.[p]?.[c.name] ??
-    ""
-  }
-  disabled={ev.submittedJudges?.includes(currentJudge)}
-  onChange={(e) => {
-    // Let user type freely but enforce range
-    const val = e.target.value;
-    if (val === "" || (!isNaN(Number(val)) && Number(val) <= c.max && Number(val) >= 0)) {
-      setTempScores((prev) => ({
-        ...prev,
-        [idx]: {
-          ...(prev[idx] || {}),
-          [p]: {
-            ...(prev[idx]?.[p] || {}),
-            [c.name]: val,
-          },
-        },
-      }));
-    }
-  }}
-  onBlur={() => {
-    // Commit when leaving the field
-    const val = tempScores?.[idx]?.[p]?.[c.name];
-    if (val !== undefined && val !== "") {
-      handleInputScore(idx, currentJudge, p, c.name, Number(val));
-    }
-  }}
-  onKeyDown={(e) => {
-    const current = Number(
-      tempScores?.[idx]?.[p]?.[c.name] ??
-      ev.scores?.[currentJudge]?.[p]?.[c.name] ??
-      0
-    );
-
-    if (e.key === "Enter" || e.key === "Tab") {
-      const val = tempScores?.[idx]?.[p]?.[c.name];
-      if (val !== undefined && val !== "") {
-        handleInputScore(idx, currentJudge, p, c.name, Number(val));
-      }
-    }
-
-    if (e.key === "ArrowUp") {
-      e.preventDefault();
-      if (current < c.max) {
-        setTempScores((prev) => ({
-          ...prev,
-          [idx]: {
-            ...(prev[idx] || {}),
-            [p]: {
-              ...(prev[idx]?.[p] || {}),
-              [c.name]: String(current + 5),
-            },
-          },
-        }));
-      }
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault();
-      if (current > 0) {
-        setTempScores((prev) => ({
-          ...prev,
-          [idx]: {
-            ...(prev[idx] || {}),
-            [p]: {
-              ...(prev[idx]?.[p] || {}),
-              [c.name]: String(current - 1),
-            },
-          },
-        }));
-      }
-    }
-  }}
-  style={{ width: "60px", textAlign: "center" }}
-/>
-
-{/* + Button */}
-<button
-  className="buttonn"
-  disabled={ev.submittedJudges?.includes(currentJudge)}
-  onClick={() => {
-    const current = Number(
-      tempScores?.[idx]?.[p]?.[c.name] ??
-      ev.scores?.[currentJudge]?.[p]?.[c.name] ??
-      0
-    );
-
-    const newScore = Math.min(current + 5, c.max); // clamp to max
-
-    setTempScores((prev) => ({
-      ...prev,
-      [idx]: {
-        ...(prev[idx] || {}),
-        [p]: {
-          ...(prev[idx]?.[p] || {}),
-          [c.name]: String(newScore),
-        },
-      },
-    }));
-  }}
->
-  +5
-</button>
-  </div>
-</td>
-                            </td>
-                          ))}
-<td>
-  {(() => {
-    const draft = tempScores?.[idx]?.[p] || {};
-    const committed = ev.scores?.[currentJudge]?.[p] || {};
-
-    return safeCriteria.reduce((sum, c) => {
-      const val = draft[c.name] !== undefined && draft[c.name] !== ""
-        ? Number(draft[c.name])
-        : committed[c.name] || 0;
-      return sum + val;
-    }, 0);
-  })()}
-</td>
-
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-      
-                  {!ev.submittedJudges?.includes(currentJudge) ? (
-                    <button
-                    className="btn-green"
-                    onClick={() => {
-                      if (window.confirm("Are you sure you want to submit your scores? You won't be able to change them afterwards.")) {
-                        handleSubmitScores(idx);
-                      }
+        </> 
+              ) : (// --- Judge View Rendering ---
+              <>
+                <div className="top-bar">
+                  <h1>🎯 Digital Scoresheet</h1>
+                  <p className="text-center credits">made by JCTA</p>
+                  <button className="btn-gray" onClick={refreshAllData}>
+                    🔄 Refresh Data
+                  </button>
+                </div>
+              
+                {visibleJudgeEvents.length === 0 ? (
+                  <p
+                    style={{
+                      textAlign: 'center',
+                      marginTop: '60px',
+                      fontSize: '18px',
+                      fontWeight: 'bold',
+                      color: '#444',
                     }}
                   >
-                    Submit Scores
-                  </button>                  
-                                    ) : (
-                    <>
-                      <p className="submitted-label">
-                        Submitted. You can view but not change scores.
-                      </p>
-                      {ev.resultsVisibleToJudges && renderSummary(ev)}
-                    </>
-                  )}
-                </div>
-              );
-            })}
-      
-            {/* --- Combined Two-Phase Results --- */}
-            <h2></h2>
-            {getTwoPhaseGroups()
-              .filter((group) => twoPhaseVisibility[group.baseName])
-              .map((group, idx) => {
-                const { baseName, phase1, phase2 } = group;
-                if (!phase1 || !phase2) return null;
-      
-                const phaseWeights = weights[baseName] ?? { phase1: 60, phase2: 40 };
-
-                const participantList = Array.from(
-                  new Set([...phase1.participants, ...phase2.participants])
-                );
-                
-                const scores = participantList.map((p) => {
-                  const avg1 = Number(calcAvg(phase1, p) || 0);
-                  const avg2 = Number(calcAvg(phase2, p) || 0);
-                
-                  return {
-                    name: p,
-                    phase1Score: avg1,
-                    phase2Score: avg2,
-                    finalScore:
-                      (avg1 * phaseWeights.phase1 + avg2 * phaseWeights.phase2) / 100,
-                  };
-                });
-                
-                return (
-                  <div key={idx} className="card">
-                    <h3>{baseName} - Final Combined Ranking</h3>
-                    <p>
-                       Weighting: Phase 1 = {phaseWeights.phase1}% | Phase 2 = {phaseWeights.phase2}%
-                    </p>                                    <table>
-                      <thead>
-                        <tr>
-                          <th>Participant</th>
-                          <th>Phase 1 Score</th>
-                          <th>Phase 2 Score</th>
-                          <th>Final Weighted Score</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {scores
-                          .sort((a, b) => b.finalScore - a.finalScore)
-                          .map((row, i) => (
-                            <tr key={i}>
-                              <td>{row.name}</td>
-                              <td>{row.phase1Score.toFixed(2)}</td>
-                              <td>{row.phase2Score.toFixed(2)}</td>
-                              <td>{row.finalScore.toFixed(2)}</td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })}
-          </>
-        )}
-      </>
-      )}      
-    </div>
-    </DisabledWrapper>
-          {/* Chat Section */}
-          <div className="chat-box">
-          <button
-            className="btn-purple"
-            onClick={() => setChatOpen((prev) => !prev)}
-          >
-            💬 {chatOpen ? 'Close Chat' : 'Open Chat'}
-          </button>
-  
-          {chatOpen && (
-            <div className="chat-window">
-              <div className="chat-messages">
-                {chatMessages.map((msg, i) => (
-                  <p key={i}>
-                    <strong>{msg.sender}:</strong> {msg.text}
+                    There's no assigned events yet. Please wait for the organizer.
+                    Thank you!
                   </p>
-                ))}
-              </div>
-              <div className="chat-input">
-                <input
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type your message..."
-                />
-                <button className="btn-blue" onClick={handleSendMessage}>
-                  Send
-                </button>
-              </div>
+                ) : (
+                  <>
+                    {/* --- Single-Phase Events Rendering --- */}
+                    {visibleJudgeEvents.map((ev, idx) => {
+                      const safeCriteria = ev.criteria.map(
+                        (c: string | { name: string; max: number }) => {
+                          if (typeof c === 'string') {
+                            const match = c.match(/^(.*?)(?:\s*\((\d+)\))?$/);
+                            return {
+                              name: match?.[1]?.trim() || c,
+                              max: match?.[2] ? parseInt(match[2]) : 10,
+                            };
+                          }
+                          return c;
+                        }
+                      );
+              
+                      return (
+                        <div key={idx} className="card">
+                          <h2>{ev.name}</h2>
+                          {!ev.submittedJudges?.includes(currentJudge) && (
+                            <p
+                              style={{
+                                color: 'red',
+                                fontWeight: 'bold',
+                                textAlign: 'center',
+                                marginBottom: '10px',
+                              }}
+                            >
+                              Important: After submitting, you can view the scores but you
+                              cannot change it. Final ranking will be shown after the
+                              organizer received all scores from all judges. Thank you!
+                            </p>
+                          )}
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>Participant</th>
+                                {safeCriteria.map((c, cdx) => (
+                                  <th key={cdx}>
+                                    {c.name} ({c.max})
+                                  </th>
+                                ))}
+                                <th>Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {ev.participants.map((p, pdx) => (
+                                <tr key={pdx}>
+                                  <td>{p}</td>
+                                  {safeCriteria.map((c, cdx) => (
+                                    <td key={cdx}>
+        <td key={cdx} className="score-cell">
+          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+            {/* – Button */}
+            <button
+              className="buttonn"
+              disabled={ev.submittedJudges?.includes(currentJudge)}
+              onClick={() => {
+                const current = Number(
+                  tempScores?.[idx]?.[p]?.[c.name] ??
+                  ev.scores?.[currentJudge]?.[p]?.[c.name] ??
+                  0
+                );
+                if (current > 0) {
+                  setTempScores((prev) => ({
+                    ...prev,
+                    [idx]: {
+                      ...(prev[idx] || {}),
+                      [p]: {
+                        ...(prev[idx]?.[p] || {}),
+                        [c.name]: String(current - 1),
+                      },
+                    },
+                  }));
+                }
+              }}
+            >
+              -1
+            </button>
+        
+            <input
+          type="number"
+          min={0}
+          max={c.max}
+          value={tempScores?.[idx]?.[p]?.[c.name] ?? ""} // ✅ Only tempScores, never ev.scores
+          disabled={ev.submittedJudges?.includes(currentJudge)}
+          onChange={(e) => {
+            const val = e.target.value;
+            // Allow typing freely but enforce only valid numbers
+            if (val === "" || (!isNaN(Number(val)) && Number(val) <= c.max && Number(val) >= 0)) {
+              setTempScores((prev) => ({
+                ...prev,
+                [idx]: {
+                  ...(prev[idx] || {}),
+                  [p]: {
+                    ...(prev[idx]?.[p] || {}),
+                    [c.name]: val, // keep as string for typing
+                  },
+                },
+              }));
+            }
+          }}
+          onBlur={() => {
+            const val = tempScores?.[idx]?.[p]?.[c.name];
+            if (val !== undefined && val !== "") {
+              handleInputScore(idx, currentJudge, p, c.name, Number(val)); // ✅ commit here
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === "Tab") {
+              const val = tempScores?.[idx]?.[p]?.[c.name];
+              if (val !== undefined && val !== "") {
+                handleInputScore(idx, currentJudge, p, c.name, Number(val));
+              }
+            }
+          }}
+          style={{ width: "60px", textAlign: "center" }}
+        />
+        
+        {/* + Button */}
+        <button
+          className="buttonn"
+          disabled={ev.submittedJudges?.includes(currentJudge)}
+          onClick={() => {
+            const current = Number(
+              tempScores?.[idx]?.[p]?.[c.name] ??
+              ev.scores?.[currentJudge]?.[p]?.[c.name] ??
+              0
+            );
+        
+            const newScore = Math.min(current + 5, c.max); // clamp to max
+        
+            setTempScores((prev) => ({
+              ...prev,
+              [idx]: {
+                ...(prev[idx] || {}),
+                [p]: {
+                  ...(prev[idx]?.[p] || {}),
+                  [c.name]: String(newScore),
+                },
+              },
+            }));
+          }}
+        >
+          +5
+        </button>
+          </div>
+        </td>
+                                    </td>
+                                  ))}
+        <td>
+          {(() => {
+            const draft = tempScores?.[idx]?.[p] || {};
+            const committed = ev.scores?.[currentJudge]?.[p] || {};
+        
+            return safeCriteria.reduce((sum, c) => {
+              const val = draft[c.name] !== undefined && draft[c.name] !== ""
+                ? Number(draft[c.name])
+                : committed[c.name] || 0;
+              return sum + val;
+            }, 0);
+          })()}
+        </td>
+        
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+              
+                          {!ev.submittedJudges?.includes(currentJudge) ? (
+                            <button
+                            className="btn-green"
+                            onClick={() => {
+                              if (window.confirm("Are you sure you want to submit your scores? You won't be able to change them afterwards.")) {
+                                handleSubmitScores(idx);
+                              }
+                            }}
+                          >
+                            Submit Scores
+                          </button>                  
+                                            ) : (
+                            <>
+                              <p className="submitted-label">
+                                Submitted. You can view but not change scores.
+                              </p>
+                              {ev.resultsVisibleToJudges && renderSummary(ev)}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+              
+                    {/* --- Combined Two-Phase Results --- */}
+                    <h2></h2>
+                    {getTwoPhaseGroups()
+                      .filter((group) => twoPhaseVisibility[group.baseName])
+                      .map((group, idx) => {
+                        const { baseName, phase1, phase2 } = group;
+                        if (!phase1 || !phase2) return null;
+              
+                        const phaseWeights = weights[baseName] ?? { phase1: 60, phase2: 40 };
+        
+                        const participantList = Array.from(
+                          new Set([...phase1.participants, ...phase2.participants])
+                        );
+                        
+                        const scores = participantList.map((p) => {
+                          const avg1 = Number(calcAvg(phase1, p) || 0);
+                          const avg2 = Number(calcAvg(phase2, p) || 0);
+                        
+                          return {
+                            name: p,
+                            phase1Score: avg1,
+                            phase2Score: avg2,
+                            finalScore:
+                              (avg1 * phaseWeights.phase1 + avg2 * phaseWeights.phase2) / 100,
+                          };
+                        });
+                        
+                        return (
+                          <div key={idx} className="card">
+                            <h3>{baseName} - Final Combined Ranking</h3>
+                            <p>
+                               Weighting: Phase 1 = {phaseWeights.phase1}% | Phase 2 = {phaseWeights.phase2}%
+                            </p>                                    <table>
+                              <thead>
+                                <tr>
+                                  <th>Participant</th>
+                                  <th>Phase 1 Score</th>
+                                  <th>Phase 2 Score</th>
+                                  <th>Final Weighted Score</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {scores
+                                  .sort((a, b) => b.finalScore - a.finalScore)
+                                  .map((row, i) => (
+                                    <tr key={i}>
+                                      <td>{row.name}</td>
+                                      <td>{row.phase1Score.toFixed(2)}</td>
+                                      <td>{row.phase2Score.toFixed(2)}</td>
+                                      <td>{row.finalScore.toFixed(2)}</td>
+                                    </tr>
+                                  ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })}
+                  </>
+                )}
+              </>
+              )}      
             </div>
-          )}
-        </div>  
-      {/* Freeze/Unfreeze Button at the bottom - ALWAYS clickable */}
-    <div style={{ marginTop: '20px', textAlign: 'center' }}>
-    <button className="btn-red" onClick={handleFreeze}>
-      {frozen ? '🔓 Unfreeze' : '❄️ Freeze'}
-    </button>
-    <button
-  className="btn-red"
-  onClick={() => {
-    if (window.confirm("Are you sure you want to logout?")) {
-      handleAuthLogout();
-    }
-  }}
->
-  🚪 Logout
-</button>
-  </div>
-</>
-  );
-}
+            </DisabledWrapper>
+                  {/* Chat Section */}
+                  <div className="chat-box">
+                  <button
+                    className="btn-purple"
+                    onClick={() => setChatOpen((prev) => !prev)}
+                  >
+                    💬 {chatOpen ? 'Close Chat' : 'Open Chat'}
+                  </button>
+          
+                  {chatOpen && (
+                    <div className="chat-window">
+                      <div className="chat-messages">
+                        {chatMessages.map((msg, i) => (
+                          <p key={i}>
+                            <strong>{msg.sender}:</strong> {msg.text}
+                          </p>
+                        ))}
+                      </div>
+                      <div className="chat-input">
+                        <input
+                          value={newMessage}
+                          onChange={(e) => setNewMessage(e.target.value)}
+                          placeholder="Type your message..."
+                        />
+                        <button className="btn-blue" onClick={handleSendMessage}>
+                          Send
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>  
+              {/* Freeze/Unfreeze Button at the bottom - ALWAYS clickable */}
+            <div style={{ marginTop: '20px', textAlign: 'center' }}>
+            <button className="btn-red" onClick={handleFreeze}>
+              {frozen ? '🔓 Unfreeze' : '❄️ Freeze'}
+            </button>
+            <button
+          className="btn-red"
+          onClick={() => {
+            if (window.confirm("Are you sure you want to logout?")) {
+              handleAuthLogout();
+            }
+          }}
+        >
+          🚪 Logout
+        </button>
+          </div>
+        </>
+          );
+        }

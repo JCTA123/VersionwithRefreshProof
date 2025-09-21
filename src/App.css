@@ -546,3 +546,125 @@ td .score-display.selected {
   font-size: 14px;
   transition: background 0.2s ease;
 }
+/* === Floating Number Picker (portal-rendered) === */
+.number-picker.dark-style {
+  position: fixed;                    /* fixed to viewport (portal -> document.body) */
+  top: 0;                             /* overridden by inline style from React */
+  left: 0;                            /* overridden by inline style from React */
+  transform: translate(-50%, -100%);  /* centers horizontally and places above cell */
+  z-index: 9999999;                   /* very high so it sits on top of everything */
+  background: rgba(25,25,25,0.96);    /* strong dark glass background */
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  box-shadow: 0 14px 40px rgba(0,0,0,0.5);
+  box-sizing: border-box;
+  max-height: 60vh;                   /* never exceed viewport height */
+  width: fit-content;                 /* shrink to content */
+  max-width: calc(100vw - 24px);      /* avoid overflowing viewport */
+  overflow-y: auto;                   /* scroll when too tall */
+  -webkit-overflow-scrolling: touch;
+  animation: fadeIn 160ms ease-out;
+  /* default: EXACTLY 7 columns per row */
+  grid-template-columns: repeat(7, minmax(44px, 1fr));
+  align-items: stretch;
+  pointer-events: auto;
+}
+
+/* Smooth entrance */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translate(-50%, -90%); }
+  to   { opacity: 1; transform: translate(-50%, -100%); }
+}
+
+/* Each number button */
+.picker-option,
+.number-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 40px;
+  padding: 8px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 700;
+  font-size: 14px;
+  color: #ffffff;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.04);
+  transition: background 120ms ease, transform 80ms ease, box-shadow 120ms ease;
+  box-sizing: border-box;
+}
+
+/* Hover / focus / active states */
+.picker-option:hover,
+.picker-option:focus {
+  background: rgba(0,123,255,0.12);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0,123,255,0.12);
+  outline: none;
+}
+
+.picker-option:active {
+  transform: translateY(0);
+  background: rgba(0,123,255,0.18);
+}
+
+/* Selected/Chosen number style (apply .selected when appropriate) */
+.picker-option.selected {
+  background: rgba(0,123,255,0.9);
+  color: #fff;
+  box-shadow: 0 8px 26px rgba(0,123,255,0.35);
+}
+
+/* Disabled look (if you ever disable options) */
+.picker-option.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Respect keyboard focus (accessibility) */
+.picker-option:focus-visible {
+  outline: 2px solid rgba(129,236,236,0.6);
+  outline-offset: 2px;
+}
+
+/* Scrollbar styling (WebKit) */
+.number-picker.dark-style::-webkit-scrollbar {
+  width: 10px;
+}
+.number-picker.dark-style::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.02);
+  border-radius: 8px;
+}
+.number-picker.dark-style::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.06);
+  border-radius: 8px;
+  border: 2px solid rgba(0,0,0,0.0);
+}
+
+/* Responsive: fewer columns on smaller screens */
+@media (max-width: 1000px) {
+  .number-picker.dark-style { grid-template-columns: repeat(5, minmax(44px, 1fr)); }
+}
+@media (max-width: 740px) {
+  .number-picker.dark-style { grid-template-columns: repeat(4, minmax(44px, 1fr)); }
+}
+@media (max-width: 520px) {
+  .number-picker.dark-style { grid-template-columns: repeat(3, minmax(40px, 1fr)); padding: 10px; gap: 6px; }
+}
+@media (max-width: 360px) {
+  .number-picker.dark-style { grid-template-columns: repeat(2, minmax(36px, 1fr)); padding: 8px; gap: 6px; }
+}
+
+/* Prevent the picker from being clipped by transform-creating parents if you ever embed it:
+   (not strictly necessary when using createPortal to document.body, but harmless) */
+.number-picker.dark-style,
+.number-picker.dark-style * {
+  transform-style: preserve-3d;
+}
