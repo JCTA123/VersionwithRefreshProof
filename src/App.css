@@ -6,8 +6,8 @@ body {
   font-family: 'Lexend', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background: linear-gradient(
       135deg,
-      rgba(20, 18, 38, 0.9),
-      rgba(12, 18, 38, 0.9)
+      rgba(20, 15, 30, 0.9),
+      rgba(12, 15, 30, 0.9)
     );
   backdrop-filter: blur(8px);
   background-size: 300% 300%;
@@ -39,7 +39,7 @@ h1, h2, h3 {
 .card2,
 .intro-screen2,
 .summary-table2 {
-  background: rgba(30, 40, 80, 0.4);
+  background: rgba(30, 40, 30, 0.4);
   backdrop-filter: blur(14px);
   border-radius: 10px;
   box-shadow: 5px 6px 20px rgba(0,0,0,0.12);
@@ -65,7 +65,7 @@ h1, h2, h3 {
   backdrop-filter: blur(14px);
   border-radius: 10px;
   box-shadow: 5px 6px 20px rgba(0,0,0,0.12);
-  border: 1.5px solid rgba(73, 156, 230, 0.7);
+  border: 2.5px solid rgba(73, 156, 230, 0.7);
   padding: 20px;
   margin: 20px auto;       /* centers horizontally */
   text-align: center;
@@ -217,7 +217,7 @@ table {
   overflow: visible !important; /* allow dropdown escape */
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(173,216,230,0.4);
+  border: 2px solid rgba(173,216,230,0.4);
 }
 
 th, td {
@@ -249,7 +249,7 @@ input.score-input {
   top: 0;  /* overridden by JS */
   left: 0; /* overridden by JS */
   transform: translate(-50%, -100%); /* center horizontally above the cell */
-  background: rgba(25, 25, 25, 0.95);
+  background: rgba(25, 25, 45, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 12px;
   padding: 12px;
@@ -272,7 +272,7 @@ input.score-input {
   text-align: center;
   cursor: pointer;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 300, 0.08);
   color: #fff;
   font-weight: 600;
   font-size: 14px;
@@ -280,7 +280,7 @@ input.score-input {
 }
 
 .picker-option:hover, .number-option:hover {
-  background: rgba(0, 123, 255, 0.7);
+  background: rgba(80, 53, 255, 0.7);
   transform: scale(1.05);
 }
 
