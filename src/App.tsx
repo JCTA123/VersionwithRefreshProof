@@ -1156,7 +1156,7 @@ if (viewMode === 'organizer' && !organizerView) {
         type="password"
         value={orgPasswordInput}
         onChange={(e) => setOrgPasswordInput(e.target.value)}
-        placeholder="Enter organizer password (Default: JCTA123)"
+        placeholder="Enter password (Default: JCTA123)"
       />
       <br />
       <button className="btn-blue" onClick={handleOrganizerLogin}>
