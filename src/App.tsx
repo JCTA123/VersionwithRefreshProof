@@ -1794,6 +1794,46 @@ if (viewMode === 'judge' && !currentJudge) {
     ))}
   </tbody>
 </table>
+{activeCell && (
+  <div className="number-picker-panel">
+    <h4 style={{ marginBottom: "8px", color: "#fff" }}>
+      {activeCell.criterion} (max {activeCell.max})
+    </h4>
+    <div className="number-grid">
+      {Array.from({ length: activeCell.max || 10 }, (_, i) => i + 1).map((num) => (
+        <div
+          key={num}
+          className="picker-option"
+          onClick={() => {
+            // Extra safety: prevent clicking if submitted
+            if (!activeCell.submitted) {
+              setTempScores((prev) => ({
+                ...prev,
+                [activeCell.eventIdx]: {
+                  ...(prev[activeCell.eventIdx] || {}),
+                  [activeCell.participant]: {
+                    ...(prev[activeCell.eventIdx]?.[activeCell.participant] || {}),
+                    [activeCell.criterion]: String(num),
+                  },
+                },
+              }));
+              handleInputScore(
+                activeCell.eventIdx,
+                currentJudge,
+                activeCell.participant,
+                activeCell.criterion,
+                num
+              );
+            }
+          }}
+        >
+          {num}
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+
 
 
                           {!ev.submittedJudges?.includes(currentJudge) ? (
@@ -1882,45 +1922,6 @@ if (viewMode === 'judge' && !currentJudge) {
               )}      
             </div>
 
-{activeCell && (
-  <div className="number-picker-panel">
-    <h4 style={{ marginBottom: "8px", color: "#fff" }}>
-      {activeCell.criterion} (max {activeCell.max})
-    </h4>
-    <div className="number-grid">
-      {Array.from({ length: activeCell.max || 10 }, (_, i) => i + 1).map((num) => (
-        <div
-          key={num}
-          className="picker-option"
-          onClick={() => {
-            // Extra safety: prevent clicking if submitted
-            if (!activeCell.submitted) {
-              setTempScores((prev) => ({
-                ...prev,
-                [activeCell.eventIdx]: {
-                  ...(prev[activeCell.eventIdx] || {}),
-                  [activeCell.participant]: {
-                    ...(prev[activeCell.eventIdx]?.[activeCell.participant] || {}),
-                    [activeCell.criterion]: String(num),
-                  },
-                },
-              }));
-              handleInputScore(
-                activeCell.eventIdx,
-                currentJudge,
-                activeCell.participant,
-                activeCell.criterion,
-                num
-              );
-            }
-          }}
-        >
-          {num}
-        </div>
-      ))}
-    </div>
-  </div>
-)}
             </DisabledWrapper>
                   {/* Chat Section */}
                   <div className="chat-box">
